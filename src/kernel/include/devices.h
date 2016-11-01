@@ -43,8 +43,9 @@
 
 typedef u16   dev_t;
 
-#define DEV_MAJOR(dev)  ((dev) & 0xff00) >> 8)
-#define DEV_MINOR(dev)  ((dev) & 0x00ff))
+#define DEV_MAJOR(dev)  (((dev) & 0xff00) >> 8)
+#define DEV_MINOR(dev)  ((dev) & 0x00ff)
+#define DEV_MAKE_DEV(major, minor)  (((major) & 0xff00) | ((minor) & 0x00ff))
 
 /* Below are the relevant major device numbers used in buhos. These numbers
  * are set to match Linux device numbers whenever possible. Refer to

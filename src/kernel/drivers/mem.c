@@ -61,6 +61,7 @@
 #include <string.h>
 #include <fb.h>
 #include <devices.h>
+#include <errors.h>
 
 void kalloc_init();
 
@@ -407,9 +408,114 @@ void mem_inspect_alloc() {
  * Device related stuff.                                                     *
  *****************************************************************************/
 
-#define MEM_MINOR_NULL  3
-#define MEM_MINOR_ZERO  5
+#define MEM_NULL_MINOR  3
+#define MEM_ZERO_MINOR  5
+
+#define show_call(f, d) fb_printf(#f " :%bd:%bd\n", DEV_MAJOR(d->devid), DEV_MINOR(d->devid))
+
+static int mem_open(dev_char_device_t *dev, dev_mode_t mode) {
+  show_call(mem_open, dev);
+  switch (DEV_MINOR(dev->devid)) {
+    case MEM_NULL_MINOR:
+      /* TODO: Do real checks here. */
+      dev->count ++;
+      return 0;
+      break;
+    case MEM_ZERO_MINOR:
+      /* TODO: Do real checks here. */
+      dev->count ++;
+      return 0;
+      break;
+    default:
+      set_errno(E_NODEV);
+      return -1;
+      break;
+  }
+}
+
+static int mem_release(dev_char_device_t *dev) {
+  show_call(mem_release, dev);
+  switch (DEV_MINOR(dev->devid)) {
+    case MEM_NULL_MINOR:
+      /* TODO: Do real checks here. */
+      dev->count --;
+      return 0;
+      break;
+    case MEM_ZERO_MINOR:
+      /* TODO: Do real checks here. */
+      dev->count --;
+      return 0;
+      break;
+    default:
+      set_errno(E_NODEV);
+      return -1;
+      break;
+  }
+}
+
+static int mem_read(dev_char_device_t *dev, char *c) {
+  show_call(mem_read, dev);
+  switch (DEV_MINOR(dev->devid)) {
+    case MEM_NULL_MINOR:
+      set_errno(E_BADFD);
+      return -1;
+      break;
+    case MEM_ZERO_MINOR:
+      *c = '\0';
+      return 0;
+      break;
+    default:
+      set_errno(E_NODEV);
+      return -1;
+      break;
+  }
+}
+
+static int mem_write(dev_char_device_t *dev, char *c) {
+  show_call(mem_write, dev);
+  switch (DEV_MINOR(dev->devid)) {
+    case MEM_NULL_MINOR:
+      return 0;
+      break;
+    case MEM_ZERO_MINOR:
+      set_errno(E_BADFD);
+      return -1;
+      break;
+    default:
+      set_errno(E_NODEV);
+      return -1;
+      break;
+  }
+}
+
+static int mem_ioctl(dev_char_device_t *dev, u32 request, void *data) {
+  show_call(mem_ioctl, dev);
+  /* TODO: Mmm... */
+  return 0;
+}
+
+static dev_char_device_operations_t mem_operations = {
+  .open = mem_open,
+  .release = mem_release,
+  .read = mem_read,
+  .write = mem_write,
+  .ioctl = mem_ioctl
+};
+
+static dev_char_device_t mem_zero = {
+  .devid = DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_NULL_MINOR),
+  .count = 0,
+  .ops = &mem_operations
+};
+
+static dev_char_device_t mem_null = {
+  .devid = DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_ZERO_MINOR),
+  .count = 0,
+  .ops = &mem_operations
+};
 
 int mem_init() {
+  dev_register_char_device(&mem_zero);
+  dev_register_char_device(&mem_null);
   return 0;
 }

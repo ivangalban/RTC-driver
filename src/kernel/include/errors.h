@@ -5,6 +5,10 @@
 #define E_NOMEM     1   /* Not enough memory. */
 #define E_NOKOBJ    2   /* Kernel object could not be found. */
 #define E_CORRUPT   3   /* Something got corrupted in the kernel. */
+#define E_NODEV     4   /* Invalid device. */
+#define E_IO        5   /* IO error. */
+#define E_ACCESS    6   /* Access denied trying to open a file. */
+#define E_BADFD     7   /* The requested operation is not valid. */
 
 extern int errno;
 

@@ -50,6 +50,7 @@ void kmain(void *gdt_base, void *mem_map) {
 void kmain2() {
   serial_port_config_t sc;
   char buf[2];
+  dev_char_device_t *zero, *null;
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -71,6 +72,19 @@ void kmain2() {
   kb_init();
   pic_unmask_dev(PIC_KEYBOARD_IRQ);
 
+  /* We can now turn interrupts on, they won't reach us (yet). */
+  hw_sti();
+
+  zero = dev_get_char_device(DEV_MAKE_DEV(DEV_MEM_MAJOR, 5)); /* 5 is ZERO */
+  zero->ops->open(zero, 0);
+  zero->ops->read(zero, buf);
+  zero->ops->release(zero);
+
+  null = dev_get_char_device(DEV_MAKE_DEV(DEV_MEM_MAJOR, 3)); /* 3 is NULL */
+  null->ops->open(null, 0);
+  null->ops->write(null, buf);
+  null->ops->release(null);
+
   sc.divisor = 3;  /* Baud rate = 115200 / 3 = 38400 */
   sc.available_interrupts = SERIAL_INT_DATA_AVAILABLE;    /* No interrupts */
   sc.line_config = SERIAL_CHARACTER_LENGTH_8 |  /* Standard 8N1 config */
@@ -80,9 +94,6 @@ void kmain2() {
     kernel_panic("Could not intialize COM1 :(");
   }
   pic_unmask_dev(PIC_SERIAL_1_IRQ);
-
-  /* We can now turn interrupts on, they won't reach us (yet). */
-  hw_sti();
 
   /* This is the idle loop. */
   while (1) {
