@@ -34,7 +34,8 @@ build/kernel.elf: build/kernel.o \
 									build/kb.o \
 									build/serial.o \
 									build/errors.o \
-									build/list.o
+									build/list.o \
+									build/devices.o
 	${LD} -m elf_i386 -T src/kernel/kernel.ld -nostdlib -static \
 				-o build/kernel.elf \
 				build/kernel_entry.o \
@@ -51,7 +52,8 @@ build/kernel.elf: build/kernel.o \
 				build/interrupts.o \
 				build/interrupts_asm.o \
 				build/pic.o \
-				build/list.o
+				build/list.o \
+				build/devices.o
 
 build/kernel_entry.o: src/kernel/kernel_entry.asm
 	${AS} -f elf -o build/kernel_entry.o src/kernel/kernel_entry.asm
@@ -97,6 +99,9 @@ build/errors.o: src/kernel/errors.c src/kernel/include/errors.h
 
 build/list.o: src/kernel/list.c src/kernel/include/list.h
 	${CC} ${CC_FLAGS} -o build/list.o src/kernel/list.c
+
+build/devices.o: src/kernel/devices.c src/kernel/include/devices.h
+	${CC} ${CC_FLAGS} -o build/devices.o src/kernel/devices.c
 
 ### Clean ###
 

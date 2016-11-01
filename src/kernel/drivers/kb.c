@@ -5,6 +5,7 @@
 #include <io.h>
 #include <interrupts.h>
 #include <mem.h>
+#include <errors.h>
 
 /* These are the ports managing the keyboard. Many registers are associated to
  * them. However, none of them is read/write, thus the operation itself
@@ -28,7 +29,7 @@
 
 /* We'll have a buffer to hold the scan codes. */
 #define KB_BUF_LEN            32  /* TODO: Is this right? */
-static unsigned char *kb_buffer;
+static char *kb_buffer;
 static int kb_buf_head;       /* Points to the first valid scan code. */
 static int kb_buf_count;      /* Total scan codes in buf */
 
@@ -36,10 +37,13 @@ int kb_init() {
   kb_buf_head = 0;
   kb_buf_count = 0;
   kb_buffer = (char *)kalloc(KB_BUF_LEN);
-  if (kb_buffer == NULL)
+  if (kb_buffer == NULL) {
+    set_errno(E_NOMEM);
     return -1;
+  }
   itr_set_interrupt_handler(PIC_KEYBOARD_IRQ, kb_interrupt_handler,
                             IDT_PRESENT | IDT_DPL_RING_0 | IDT_GATE_INTR);
+  return 0;
 }
 
 /* This is the actual interrupt handler. */

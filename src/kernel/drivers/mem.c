@@ -60,6 +60,7 @@
 #include <mem.h>
 #include <string.h>
 #include <fb.h>
+#include <devices.h>
 
 void kalloc_init();
 
@@ -120,7 +121,7 @@ u8 mem_bitmap_get_entry(u32 frame) {
 /* Intializes memory. It first reads the memory map obtained from the BIOS
  * and then creates a memory map with that info. It also intializes the bitmap
  * to keep track of all pages in the main memory. TODO: Fill the GDT. */
-int mem_init(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
+int mem_setup(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
   struct mem_bios_mmap_entry *e;
   u64 max_addr;
   u64 first_frame, last_frame;
@@ -400,4 +401,15 @@ void mem_inspect_alloc() {
               e->flags, e->size, e->prev, e->next);
     e = e->next;
   }
+}
+
+/*****************************************************************************
+ * Device related stuff.                                                     *
+ *****************************************************************************/
+
+#define MEM_MINOR_NULL  3
+#define MEM_MINOR_ZERO  5
+
+int mem_init() {
+  return 0;
 }

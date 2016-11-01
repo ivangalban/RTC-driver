@@ -68,18 +68,23 @@
 #define MEM_USER_SPACE_ADDR       ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
 #define MEM_USER_FIRST_FRAME      ((MEM_USER_SPACE_ADDR) / (MEM_FRAME_SIZE))
 
-#include <typedef.h>
-
 /* Initializes memory management system. It receives two addresses: the current
  * GDT base address and the memory map obtained from the BIOS during the real
- * mode part of this kernel. */
-int mem_init(void *gdt_base, void *mem_map);
+ * mode part of this kernel. This functionality is supposed to be called very
+ * early in the boot up process, even before the dev and vfs subsystems are
+ * initialized. The rest of the initialization will take place later in
+ * mem_init(), which is in turn called after dev and vfs are set up. */
+int mem_setup(void *gdt_base, void *mem_map);
 
 /* Rellocates the memory to the address given. Be aware than after calling
  * this function the previous stack will be lost, including the caller's
  * activation registry. This is just a hack and if there were to be a better
  * way to do this I'll definitively change it. */
 void mem_relocate_stack_to(void *);
+
+/* Completes the initialization of the memorys subsystem by publishing all
+ * the special files provided by this driver. */
+int mem_init();
 
 /* Requests a contiguous space of count frames starting from first_frame but
  * not reaching last_frame. If last_frame is 0, then all frames from

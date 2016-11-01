@@ -6,6 +6,7 @@
 #include <serial.h>
 #include <kb.h>
 #include <errors.h>
+#include <devices.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -27,7 +28,7 @@ void kmain(void *gdt_base, void *mem_map) {
 
   /* Initialize the memory. We're using the stack set during the real-mode
    * initial steps. */
-  if (mem_init(gdt_base, mem_map) == -1) {
+  if (mem_setup(gdt_base, mem_map) == -1) {
     kernel_panic("Could not initialize memory :(");
   }
   /* Our stack will be 4K long situated at the end of the kernel space, right
@@ -50,26 +51,24 @@ void kmain2() {
   serial_port_config_t sc;
   char buf[2];
 
-  /* Now we're here, let's set the panic level. */
-  set_panic_level(PANIC_PERROR);
+  /* Now we're here, let's set the panic level to hysterical: nothing here
+   * can fail. */
+  set_panic_level(PANIC_HYSTERICAL);
 
-  fb_reset();
-  fb_set_fg_color(FB_COLOR_BLUE);
-  fb_set_bg_color(FB_COLOR_WHITE);
-  fb_clear();
+  /* Set up the interrupt subsytem. */
+  itr_set_up();
 
-  /* Initializes the interrupt subsytem. */
-  if (itr_set_up() == -1) {
-    kernel_panic("Coult not initialize IDT :(");
-  }
+  /* Initializes the dev subsystem. */
+  dev_init();
+
+  /* Complete memory initialization. */
+  mem_init();
 
   /* Initializes the PICs. This mask all interrupts. */
   pic_init();
 
   /* Activate the keyboard. */
-  if (kb_init() == -1) {
-    kernel_panic("Could not initialize the keyboard :(");
-  }
+  kb_init();
   pic_unmask_dev(PIC_KEYBOARD_IRQ);
 
   sc.divisor = 3;  /* Baud rate = 115200 / 3 = 38400 */

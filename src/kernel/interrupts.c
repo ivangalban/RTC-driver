@@ -4,6 +4,7 @@
 #include <mem.h>
 #include <pic.h>
 #include <fb.h>
+#include <errors.h>
 
 #define IDT_ENTRIES               256
 
@@ -70,12 +71,16 @@ int itr_set_up() {
 
   interrupt_handlers =
     (interrupt_handler_t *)kalloc(sizeof(interrupt_handler_t) * IDT_ENTRIES);
-  if (interrupt_handlers == NULL)
+  if (interrupt_handlers == NULL) {
+    set_errno(E_NOMEM);
     return -1;
+  }
 
   idt = (itr_idt_entry_t *)kalloc(sizeof(itr_idt_entry_t) * IDT_ENTRIES);
-  if (idt == NULL)
+  if (idt == NULL) {
+    set_errno(E_NOMEM);
     return -1;
+  }
 
   /* Clear all interrupt handlers. */
   for (i = 0; i < 256; i++)
