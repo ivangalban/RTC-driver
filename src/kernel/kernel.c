@@ -5,20 +5,10 @@
 #include <pic.h>
 #include <serial.h>
 #include <kb.h>
+#include <errors.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
-
-/* In case we run into PANIC. */
-void kernel_panic(char *msg) {
-  fb_set_fg_color(FB_COLOR_WHITE);
-  fb_set_bg_color(FB_COLOR_RED);
-  fb_clear();
-  fb_write(msg, strlen(msg));
-  hw_cli();
-  hw_hlt();
-  /* And the world stops ... */
-}
 
 void kmain(void *gdt_base, void *mem_map) {
   /* This is a hack. We need to set the stack to the right place, but we need
@@ -59,6 +49,9 @@ void kmain(void *gdt_base, void *mem_map) {
 void kmain2() {
   serial_port_config_t sc;
   char buf[2];
+
+  /* Now we're here, let's set the panic level. */
+  set_panic_level(PANIC_PERROR);
 
   fb_reset();
   fb_set_fg_color(FB_COLOR_BLUE);
