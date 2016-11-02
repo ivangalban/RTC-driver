@@ -234,8 +234,8 @@ int fb_printf(char *fmt, ...) {
           s = buf;
           break;
       }
-      fb_write(buf, strlen(buf));
-      count += strlen(buf);
+      fb_write(s, strlen(s));
+      count += strlen(s);
       state = STATE_LITERAL;
     }
   }
