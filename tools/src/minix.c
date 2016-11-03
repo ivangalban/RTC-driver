@@ -240,8 +240,12 @@ void minix_save_inode(int i, minix_inode_t *inode) {
 
 void minix_trunc_inode(minix_inode_t *inode) {
   block_t blk, blk2;
-  unsigned short *blks;
+  // unsigned short *blks;
   int fb, i;
+
+  fb = inode->i_size / MINIX_BLOCK_SIZE;
+  if (inode->i_size % MINIX_BLOCK_SIZE != 0)
+    fb ++;
 
   for (i = 0; i < fb; i ++) {
     if (i < 7) {
@@ -287,19 +291,19 @@ int minix_write(int argc, char *argv[]) {
   struct mbr mbr;
   minix_inode_t inode, root;
   minix_direntry_t *dentries, dentry;
-  minix_inode_t *inodes;
-  unsigned short *zones;
-  unsigned short b;
-  block_t bmain, bsec, bthird;
+  // minix_inode_t *inodes;
+  // unsigned short *zones;
+  // unsigned short b;
+  block_t bmain; //  bsec; // bthird;
 
   #define imgf      argv[2]
   #define kerf      argv[3]
   #define _partno   argv[4]
 
   int partno, br, done;
-  size_t r;
+  // size_t r;
   struct stat kstat;
-  int kerb, i, k, count, slb;
+  int kerb, i, k, count; // , slb;
 
   /* Load MBR */
   img = fopen(imgf, "r+");
