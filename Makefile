@@ -117,8 +117,9 @@ tools/btool: tools/src/btool.h \
 						 tools/src/mbr.c \
 						 tools/src/bootloader.c \
 						 tools/src/minix.c
-	${CC} -o tools/btool tools/src/mbr.c tools/src/btool.c \
-					 tools/src/bootloader.c tools/src/minix.c
+	${CC} -Wall -o tools/btool tools/src/mbr.c \
+														 tools/src/btool.c \
+														 tools/src/bootloader.c tools/src/minix.c
 
 ### One shot rules ###
 
