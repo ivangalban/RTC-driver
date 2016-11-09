@@ -41,7 +41,7 @@
 #define SERIAL_TYPE_16550A      4
 #define SERIAL_TYPE_16750       5
 
-/* Each device has its own reading and writing buffer. */
+/* Each device has its own reading buffer. */
 typedef struct serial_buffer {
   u32 write_head;
   u32 read_head;
@@ -62,9 +62,12 @@ typedef struct serial_device {
     u8 modem_ctl;               /* MODEM configuration. NOT USED. */
   } config;
   serial_buffer_t read_buf;     /* reading buffer. */
-  serial_buffer_t write_buf;    /* writing buffer. */
+  int trx_empty;                /* Wheter the transmitter is empty or not. */
+  dev_char_device_t *dev;       /* Pointer to registered char_device_t. */
 } serial_device_t;
 
+#define SERIAL_TRX_EMPTY        0
+#define SERIAL_TRX_NOT_EMPTY    1
 
 /* UART is the chipset implementing the serial port. These are it's registers
  * expressed in terms of offsets relative to the base chipset base address.
@@ -244,11 +247,9 @@ void serial_read_byte(serial_device_t *dev) {
                               SERIAL_BUFFER_LEN;
 }
 
-void serial_write_byte(serial_device_t *dev) {
-  outb(SERIAL_DATA_PORT(dev->base),
-       dev->write_buf.buffer[dev->write_buf.read_head]);
-  dev->write_buf.read_head = (dev->write_buf.read_head + 1) %
-                              SERIAL_BUFFER_LEN;
+/* Forcefully write a byte to the serial line. */
+void serial_write_byte(serial_device_t *dev, char c) {
+  outb(SERIAL_DATA_PORT(dev->base), c);
 }
 
 void serial_check_line_condition(serial_device_t *dev) {
@@ -284,12 +285,12 @@ void serial_interrupt_handler(itr_cpu_regs_t regs,
         serial_read_byte(devices + i);
         break;
       case SERIAL_IIR_TRX_HOLDER_EMPTY:
-        if (devices[i].write_buf.write_head != devices[i].write_buf.read_head)
-          serial_write_byte(devices + i);
-        else
-          /* If there's no data to send to the line, reading again IIR will
-           * cause the UART to clear the interrupt. */
-          inb(SERIAL_INTERRUPT_ID_PORT(devices[i].base));
+        fb_printf("empty\n");
+        devices[i].trx_empty = SERIAL_TRX_EMPTY;
+        fb_printf("int %bd %dd\n", DEV_MINOR(devices[i].devid), devices[i].trx_empty);
+        /* If there's no data to send to the line, reading again IIR will
+         * cause the UART to clear the interrupt. */
+        inb(SERIAL_INTERRUPT_ID_PORT(devices[i].base));
         break;
       case SERIAL_IIR_LINE_STATUS:
         serial_check_line_condition(devices + i);
@@ -308,6 +309,108 @@ void serial_interrupt_handler(itr_cpu_regs_t regs,
   }
 
   pic_send_eoi(data.irq);
+}
+
+static int serial_open(dev_char_device_t *dev, dev_mode_t mode) {
+  int i;
+
+  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
+    if (dev->devid == devices[i].devid) {
+      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
+        set_errno(E_NODEV);
+        return -1;
+      }
+      if (dev->count == 0) {
+        dev->count = 1;
+        return 0;
+      }
+      set_errno(E_BUSY);
+      return -1;
+    }
+  }
+
+  set_errno(E_NODEV);
+  return -1;
+}
+
+static int serial_release(dev_char_device_t *dev) {
+  int i;
+
+  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
+    if (dev->devid == devices[i].devid) {
+      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
+        set_errno(E_NODEV);
+        return -1;
+      }
+      dev->count = 0;
+      return 0;
+    }
+  }
+
+  set_errno(E_NODEV);
+  return -1;
+}
+
+static int serial_read(dev_char_device_t *dev, char *c) {
+  int i;
+
+  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
+    if (dev->devid == devices[i].devid) {
+      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
+        set_errno(E_NODEV);
+        return -1;
+      }
+      if (dev->count == 0) {
+        set_errno(E_BADFD);
+        return -1;
+      }
+      /* Make this synchronous by staying here until something comes.
+       * TODO: This is not a good approach. */
+      while (devices[i].read_buf.read_head == devices[i].read_buf.write_head) {
+        hw_hlt();
+      }
+      *c = devices[i].read_buf.buffer[devices[i].read_buf.read_head];
+      hw_cli();
+      devices[i].read_buf.read_head = (devices[i].read_buf.read_head + 1)
+                                        % SERIAL_BUFFER_LEN;
+      hw_sti();
+      return 0;
+    }
+  }
+
+  set_errno(E_NODEV);
+  return -1;
+}
+
+static int serial_write(dev_char_device_t *dev, char *c) {
+  int i;
+
+  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
+    if (dev->devid == devices[i].devid) {
+      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
+        set_errno(E_NODEV);
+        return -1;
+      }
+      if (dev->count == 0) {
+        set_errno(E_BADFD);
+        return -1;
+      }
+      while (devices[i].trx_empty == SERIAL_TRX_NOT_EMPTY) {
+        fb_printf("hlt %bd %dd\n", DEV_MINOR(devices[i].devid), devices[i].trx_empty);
+        hw_hlt();
+      }
+      fb_printf("Writting %bd\n", *c);
+      serial_write_byte(devices + i, *c);
+      // devices[i].trx_empty = SERIAL_TRX_NOT_EMPTY;
+      return 0;
+    }
+  }
+  set_errno(E_NODEV);
+  return -1;
+}
+
+static int serial_ioctl(dev_char_device_t *dev, u32 request, void *data) {
+  return 0;
 }
 
 /* Initializes the serial devices and publishes the corresponding devices.
@@ -410,9 +513,22 @@ int serial_init() {
     }
 
     devices[i].read_buf.read_head = devices[i].read_buf.write_head = 0;
-    devices[i].write_buf.read_head = devices[i].write_buf.write_head = 0;
+    devices[i].trx_empty = SERIAL_TRX_EMPTY;
 
     serial_set_config(devices + i);
+
+    devices[i].dev = (dev_char_device_t *)kalloc(sizeof(dev_char_device_t));
+    devices[i].dev->devid = devices[i].devid;
+    devices[i].dev->count = 0;
+    devices[i].dev->ops =
+      (dev_char_device_operations_t *)kalloc(sizeof(dev_char_device_operations_t));
+    devices[i].dev->ops->open = serial_open;
+    devices[i].dev->ops->release = serial_release;
+    devices[i].dev->ops->read = serial_read;
+    devices[i].dev->ops->write = serial_write;
+    devices[i].dev->ops->ioctl = serial_ioctl;
+
+    dev_register_char_device(devices[i].dev);
   }
 
   /* Set only the interrupt handlers that must be set. */
@@ -434,25 +550,5 @@ int serial_init() {
     }
   }
 
-  return 0;
-}
-
-static int serial_open(dev_char_device_t *dev, dev_mode_t mode) {
-  return 0;
-}
-
-static int serial_release(dev_char_device_t *dev, dev_mode_t mode) {
-  return 0;
-}
-
-static int serial_read(dev_char_device_t *dev, char *c) {
-  return 0;
-}
-
-static int serial_write(dev_char_device_t *dev, char *c) {
-  return 0;
-}
-
-static int serial_ioctl(dev_char_device_t *dev, u32 request, void *data) {
   return 0;
 }
