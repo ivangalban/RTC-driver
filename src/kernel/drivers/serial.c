@@ -62,12 +62,8 @@ typedef struct serial_device {
     u8 modem_ctl;               /* MODEM configuration. NOT USED. */
   } config;
   serial_buffer_t read_buf;     /* reading buffer. */
-  int trx_empty;                /* Wheter the transmitter is empty or not. */
   dev_char_device_t *dev;       /* Pointer to registered char_device_t. */
 } serial_device_t;
-
-#define SERIAL_TRX_EMPTY        0
-#define SERIAL_TRX_NOT_EMPTY    1
 
 /* UART is the chipset implementing the serial port. These are it's registers
  * expressed in terms of offsets relative to the base chipset base address.
@@ -252,6 +248,8 @@ void serial_write_byte(serial_device_t *dev, char c) {
   outb(SERIAL_DATA_PORT(dev->base), c);
 }
 
+/* Checks the line condition.
+ * TODO: Do a real checking and try to recover from the error. */
 void serial_check_line_condition(serial_device_t *dev) {
   u8 r8;
 
@@ -275,7 +273,6 @@ void serial_interrupt_handler(itr_cpu_regs_t regs,
     if (devices[i].irq != data.irq)
       continue;
     r8 = inb(SERIAL_INTERRUPT_ID_PORT(devices[i].base));
-    // fb_printf("[serial %bd]: IIR %bb.\n", DEV_MINOR(devices[i].devid), r8);
     if (!SERIAL_IIR_PENDING(r8))
       continue;
 
@@ -285,11 +282,12 @@ void serial_interrupt_handler(itr_cpu_regs_t regs,
         serial_read_byte(devices + i);
         break;
       case SERIAL_IIR_TRX_HOLDER_EMPTY:
-        fb_printf("empty\n");
-        devices[i].trx_empty = SERIAL_TRX_EMPTY;
-        fb_printf("int %bd %dd\n", DEV_MINOR(devices[i].devid), devices[i].trx_empty);
         /* If there's no data to send to the line, reading again IIR will
-         * cause the UART to clear the interrupt. */
+         * cause the UART to clear the interrupt. This would make sense if
+         * we were using a multiprogramming system, but since there's only
+         * one executing process, sending bytes over the serial line is
+         * made in blocking, busy-waiting mode, thus there's not much point
+         * in doing anything with this interrupt. */
         inb(SERIAL_INTERRUPT_ID_PORT(devices[i].base));
         break;
       case SERIAL_IIR_LINE_STATUS:
@@ -384,6 +382,7 @@ static int serial_read(dev_char_device_t *dev, char *c) {
 
 static int serial_write(dev_char_device_t *dev, char *c) {
   int i;
+  u8 r8;
 
   for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
     if (dev->devid == devices[i].devid) {
@@ -395,13 +394,12 @@ static int serial_write(dev_char_device_t *dev, char *c) {
         set_errno(E_BADFD);
         return -1;
       }
-      while (devices[i].trx_empty == SERIAL_TRX_NOT_EMPTY) {
-        fb_printf("hlt %bd %dd\n", DEV_MINOR(devices[i].devid), devices[i].trx_empty);
-        hw_hlt();
-      }
-      fb_printf("Writting %bd\n", *c);
+      while (1) {
+        r8 = inb(SERIAL_LINE_STATUS_PORT(devices[i].base));
+        if (r8 & SERIAL_LINE_STATUS_EMPTY_DATA_HOLDING_REG)
+          break;
+      };
       serial_write_byte(devices + i, *c);
-      // devices[i].trx_empty = SERIAL_TRX_NOT_EMPTY;
       return 0;
     }
   }
@@ -513,7 +511,6 @@ int serial_init() {
     }
 
     devices[i].read_buf.read_head = devices[i].read_buf.write_head = 0;
-    devices[i].trx_empty = SERIAL_TRX_EMPTY;
 
     serial_set_config(devices + i);
 
