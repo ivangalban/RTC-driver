@@ -9,6 +9,7 @@
 #define E_IO        5   /* IO error. */
 #define E_ACCESS    6   /* Access denied trying to open a file. */
 #define E_BADFD     7   /* The requested operation is not valid. */
+#define E_BUSY      8   /* Device is busy, i.e. locked. */
 
 extern int errno;
 

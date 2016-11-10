@@ -48,9 +48,11 @@ void kmain(void *gdt_base, void *mem_map) {
 }
 
 void kmain2() {
-  serial_port_config_t sc;
+  // serial_port_config_t sc;
   char buf[2];
-  dev_char_device_t *zero, *null;
+  dev_char_device_t *s;
+  char *msg = "You pressed ESC.\n";
+  int i;
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -72,33 +74,34 @@ void kmain2() {
   kb_init();
   pic_unmask_dev(PIC_KEYBOARD_IRQ);
 
-  /* We can now turn interrupts on, they won't reach us (yet). */
+  serial_init();
+  pic_unmask_dev(PIC_SERIAL_1_IRQ);
+  pic_unmask_dev(PIC_SERIAL_2_IRQ);
+
   hw_sti();
 
-  zero = dev_get_char_device(DEV_MAKE_DEV(DEV_MEM_MAJOR, 5)); /* 5 is ZERO */
-  zero->ops->open(zero, 0);
-  zero->ops->read(zero, buf);
-  zero->ops->release(zero);
+  s = dev_get_char_device(DEV_MAKE_DEV(DEV_TTY_MAJOR, 64));
+  if (s == NULL)
+    kernel_panic("No TTY:64\n");
+  s->ops->open(s, 0);
 
-  null = dev_get_char_device(DEV_MAKE_DEV(DEV_MEM_MAJOR, 3)); /* 3 is NULL */
-  null->ops->open(null, 0);
-  null->ops->write(null, buf);
-  null->ops->release(null);
+  /* We can now turn interrupts on, they won't reach us (yet). */
 
-  sc.divisor = 3;  /* Baud rate = 115200 / 3 = 38400 */
-  sc.available_interrupts = SERIAL_INT_DATA_AVAILABLE;    /* No interrupts */
-  sc.line_config = SERIAL_CHARACTER_LENGTH_8 |  /* Standard 8N1 config */
-                   SERIAL_PARITY_NONE |
-                   SERIAL_SINGLE_STOP_BIT;
-  if (serial_init(SERIAL_COM1, &sc) == -1) {
-    kernel_panic("Could not intialize COM1 :(");
-  }
-  pic_unmask_dev(PIC_SERIAL_1_IRQ);
+  fb_printf("Idle loop.\n");
 
   /* This is the idle loop. */
   while (1) {
     buf[0] = 0; buf[1] = 0;
-    serial_read(SERIAL_COM1, buf, 1);
-    fb_write(buf, 1);
+    s->ops->read(s, buf);
+    if (buf[0] == 27) {
+      for (i = 0; i < strlen(msg); i ++) {
+        if (s->ops->write(s, msg + i) == -1)
+          kernel_panic("Write returned -1\n");
+      }
+    }
+    else {
+      fb_write(buf, 1);
+    }
+    hw_hlt();
   }
 }
