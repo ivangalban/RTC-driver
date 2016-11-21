@@ -1,6 +1,7 @@
 #include <devices.h>
 #include <list.h>
 #include <errors.h>
+#include <vfs.h>
 
 /* Globals */
 list_t chr_devs;

@@ -64,11 +64,43 @@ typedef u16   dev_t;
 #define DEV_TTY_MAJOR           4     /* char  */
 #define DEV_FB_MAJOR           29     /* char  */
 
-/*** Device access modes ***/
+
+/******************/
+/*   Client API   */
+/******************/
+
+/* Device access modes. When requesting access to a device, a mode must be
+ * specified. */
 typedef u16   dev_mode_t;
+
+#define DEV_MODE_O_READ       0x0001  /* Open device for reading. */
+#define DEV_MODE_O_WRITE      0x0002  /* Open device for writting. */
+#define DEV_MODE_O_EXCL       0x0004  /* Open device exclusively. */
+#define DEV_MODE_O_DIRECT     0x0008  /* Don't cache the device data. */
+
+/* Block devices API */
+/* Requests access to a block device. */
+int dev_blk_open(dev_t, int);
+/* Release a block device from use. */
+int dev_blk_release(dev_t);
+int dev_blk_read(dev_t, char *, soff_t, ssize_t);
+int dev_blk_write(dev_t, char *, soff_t, ssize_t);
+int dev_blk_flush(dev_t);
+int dev_blk_ioctl(dev_t, u32, void *);
+
+int dev_chr_open(dev_t, int);
+int dev_chr_release(dev_t);
+int dev_chr_read(dev_t, char *, ssize_t);
+int dev_chr_write(dev_t, char *, ssize_t);
+int dev_chr_flush(dev_t);
+int dev_chr_ioctl(dev_t, u32, void *);
+
+
 
 #define DEV_MODE_CAN_READ     0x0001  /* Device is readable.  */
 #define DEV_MODE_CAN_WRITE    0x0002  /* Device is writtable. */
+#define DEV_MODE_DIRECT_IO    0x0004  /* Device should use no caching. */
+
 
 
 /* Let's just provide the typedef before the actual definition to avoid the
@@ -86,8 +118,10 @@ typedef struct dev_char_device_operations   dev_char_device_operations_t;
 struct dev_block_device {
   dev_t devid;                          /* Dev ID (MAJOR and MINOR) */
   int count;                            /* Reference count. */
+  dev_mode_t mode;                      /* Current open mode. */
   size_t sector_size;                   /* Sector size in bytes. */
   ssize_t sectors;                      /* Total sectors. */
+
   dev_block_device_operations_t *ops;   /* Operations. */
 };
 
