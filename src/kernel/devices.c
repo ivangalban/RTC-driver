@@ -1,11 +1,20 @@
 #include <devices.h>
 #include <list.h>
 #include <errors.h>
-#include <vfs.h>
+// #include <vfs.h>
 
 /* Globals */
 list_t chr_devs;
 list_t blk_devs;
+
+/* Devices will be identified by devid, thus we need to provide a specific
+ * comparison function for list_find to work properly. */
+int dev_blk_list_cmp(void *blk_item, void *devid) {
+  return ((dev_block_device_t *)blk_item)->devid == *((dev_t *)devid);
+}
+int dev_chr_list_cmp(void *chr_item, void *devid) {
+  return ((dev_char_device_t *)chr_item)->devid == *((dev_t*)devid);
+}
 
 /* Just init out globals */
 int dev_init() {
@@ -18,19 +27,21 @@ int dev_init() {
 int dev_register_block_device(dev_block_device_t *dev) {
   dev_block_device_t *d;
 
-  d = (dev_block_device_t *)list_find(&blk_devs, dev->devid);
+  d = (dev_block_device_t *)list_find(&blk_devs,
+                                      dev_blk_list_cmp,
+                                      &(dev->devid));
   if (d != NULL) {
     /* Device is already registered... TODO: What should be do? */
     return 0;
   }
-  return list_add(&blk_devs, dev, dev->devid);
+  return list_add(&blk_devs, dev);
 }
 
 /* Remove block device */
 int dev_remove_block_device(dev_t devid) {
   int pos;
 
-  pos = list_find_pos(&blk_devs, devid);
+  pos = list_find_pos(&blk_devs, dev_blk_list_cmp, &devid);
   if (pos == -1)
     return -1;
 
@@ -39,26 +50,30 @@ int dev_remove_block_device(dev_t devid) {
 
 /* Get block device */
 dev_block_device_t * dev_get_block_device(dev_t devid) {
-  return (dev_block_device_t *)list_find(&blk_devs, devid);
+  return (dev_block_device_t *)list_find(&blk_devs,
+                                         dev_blk_list_cmp,
+                                         &devid);
 }
 
 /* Register char device */
 int dev_register_char_device(dev_char_device_t *dev) {
   dev_char_device_t *d;
 
-  d = (dev_char_device_t *)list_find(&chr_devs, dev->devid);
+  d = (dev_char_device_t *)list_find(&chr_devs,
+                                     dev_chr_list_cmp,
+                                     &(dev->devid));
   if (d != NULL) {
     /* Device is already registered... TODO: What should be do? */
     return 0;
   }
-  return list_add(&chr_devs, dev, dev->devid);
+  return list_add(&chr_devs, dev);
 }
 
 /* Remove char device */
 int dev_remove_char_device(dev_t devid) {
   int pos;
 
-  pos = list_find_pos(&chr_devs, devid);
+  pos = list_find_pos(&chr_devs, dev_chr_list_cmp, &devid);
   if (pos == -1)
     return -1;
 
@@ -67,5 +82,5 @@ int dev_remove_char_device(dev_t devid) {
 
 /* Get char device */
 dev_char_device_t * dev_get_char_device(dev_t devid) {
-  return (dev_char_device_t *)list_find(&chr_devs, devid);
+  return (dev_char_device_t *)list_find(&chr_devs, dev_chr_list_cmp, &devid);
 }

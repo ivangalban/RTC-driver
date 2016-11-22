@@ -8,7 +8,7 @@ void list_init(list_t * l) {
   l->count = 0;
 }
 
-int list_add(list_t *l, void *val, list_key_t key) {
+int list_add(list_t *l, void *val) {
   list_node_t *n, *p;
 
   n = (list_node_t*)kalloc(sizeof(list_node_t));
@@ -18,7 +18,6 @@ int list_add(list_t *l, void *val, list_key_t key) {
   }
 
   n->val = val;
-  n->key = key;
   n->next = NULL;
 
   if (l->head == NULL) {
@@ -46,22 +45,22 @@ void * list_get(list_t *l, int pos) {
   return p->val;
 }
 
-void * list_find(list_t *l, list_key_t k) {
+void * list_find(list_t *l, list_cmp_t list_cmp, void *search) {
   list_node_t *p;
   for (p = l->head;
-       p != NULL && p->key != k;
+       p != NULL && !list_cmp(p, search);
        p = p->next);
   if (p == NULL)
     return NULL;
   return p->val;
 }
 
-int list_find_pos(list_t *l, list_key_t k) {
+int list_find_pos(list_t *l, list_cmp_t list_cmp, void *search) {
   list_node_t *p;
   int i;
 
   for (p = l->head, i = 0;
-       p != NULL && p->key != k;
+       p != NULL && !list_cmp(p, search);
        p = p->next, i ++);
   if (p == NULL) {
     return -1;
