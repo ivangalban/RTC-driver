@@ -72,16 +72,13 @@ void kmain2() {
 
   /* Mount rootfs on "/" */
   vfs_mount(ROOTFS_DEVID, "/", ROOTFS_NAME);
-  vfs_stat("/", &st);
-  vfs_mkdir("/lola", 0644);
-  vfs_mkdir("/lola/flores", 0777);
-  vfs_mknod("/lola/flores/a", FILE_TYPE_CHAR_DEV | 0600, DEV_MAKE_DEV(DEV_MEM_MAJOR, 10));
-  vfs_stat("/lola/flores/a", &st);
-  fb_printf("/lola/flores/a: { st.ino = %dd, st.size = %dd, st.mode = %wo, st.dev = %wx }\n",
-            st.ino, st.size, st.mode, st.dev);
 
   /* Initializes the dev subsystem. */
   dev_init();
+
+  vfs_stat("/dev", &st);
+  fb_printf("/dev: { st.ino = %dd, st.size = %dd, st.mode = %wo, st.dev = %wx }\n",
+            st.ino, st.size, st.mode, st.dev);
 
   /* Complete memory initialization now as a device and filesystem module. */
   mem_init();

@@ -1,7 +1,8 @@
 #include <devices.h>
 #include <list.h>
 #include <errors.h>
-// #include <vfs.h>
+#include <vfs.h>
+#include <fs/memfs.h>
 
 /* Globals */
 list_t chr_devs;
@@ -16,10 +17,18 @@ int dev_chr_list_cmp(void *chr_item, void *devid) {
   return ((dev_char_device_t *)chr_item)->devid == *((dev_t*)devid);
 }
 
-/* Just init out globals */
+/* Just init out globals and register our filesystem. */
 int dev_init() {
   list_init(&chr_devs);
   list_init(&blk_devs);
+  if (memfs_create(DEV_FS_NAME, DEV_FS_DEVID, MEMFS_FLAGS_ALLOW_FILES |
+                                              MEMFS_FLAGS_ALLOW_DIRS  |
+                                              MEMFS_FLAGS_ALLOW_NODES) == -1)
+    return -1;
+  if (vfs_mkdir("/dev", 0755) == -1)
+    return -1;
+  if (vfs_mount(DEV_FS_DEVID, "/dev", DEV_FS_NAME) == -1)
+    return -1;
   return 0;
 }
 

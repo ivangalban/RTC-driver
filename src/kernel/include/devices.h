@@ -61,6 +61,13 @@
 #define DEV_TTY_MAJOR           4     /* char  */
 #define DEV_FB_MAJOR           29     /* char  */
 
+/****************************************************************************/
+/* VFS API ******************************************************************/
+/****************************************************************************/
+#define DEV_FS_NAME             "devfs"
+#define DEV_FS_MAJOR            DEV_UNNAMED_MAJOR
+#define DEV_FS_MINOR            2
+#define DEV_FS_DEVID            DEV_MAKE_DEV(DEV_FS_MAJOR, DEV_FS_MINOR)
 
 /******************/
 /*   Client API   */
