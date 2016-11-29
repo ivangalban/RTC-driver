@@ -41,7 +41,8 @@
 /*   Device identification   */
 /*****************************/
 
-#define DEV_MAKE_DEV(major, minor)  (((major) & 0xff00) | ((minor) & 0x00ff))
+#define DEV_MAKE_DEV(major, minor)  ((dev_t)((((major) & 0x00ff) << 8) | \
+                                             ((minor) & 0x00ff)))
 
 /* Below are the relevant major device numbers used in buhos. These numbers
  * are set to match Linux device numbers whenever possible. Refer to

@@ -21,6 +21,7 @@
 #define E_LIMIT         17  /* Some limit was reached. */
 #define E_NOSPACE       18  /* No space left on device. */
 #define E_NOTIMP        19  /* No implemented yet. */
+#define E_INVAL         20  /* Invalid argument, mostly mode. */
 
 extern int errno;
 

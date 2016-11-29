@@ -558,7 +558,7 @@ static int vfs_vnode_unmount_sb(vfs_sb_t *sb) {
 }
 
 /*****************************************************************************/
-/* Lookup ********************************************************************/
+/* Helpers *******************************************************************/
 /*****************************************************************************/
 
 /* Just a helper function to check the dentry type and load the backing node.
@@ -572,6 +572,128 @@ static vfs_vnode_t * vfs_node_from_dentry(vfs_dentry_t *d) {
     return vfs_vnode_get_or_read(d->ro.d_mnt_sb, d->ro.d_mnt_sb->sb_root_vno);
   }
 }
+
+static vfs_dentry_t * vfs_lookup(char *path);
+
+/* Creating all kinds of files is quite similar, so we're going to factorize
+ * it here. */
+static int vfs_create_node(char *path, mode_t mode, dev_t devid) {
+  char *parent_path, *name;
+  vfs_dentry_t *parent, *dentry;
+  vfs_vnode_t *parent_node;
+  int r, err;
+
+  /* TODO: Rememer to do sanitation. */
+
+  /* Let's forbid trying to create "/". */
+  if (strcmp(path, "/") == 0) {
+    set_errno(E_ACCESS);
+    return -1;
+  }
+
+  /* Copy the path since we're going to alter it. */
+  parent_path = (char *)kalloc(strlen(path) + 1);
+  if (parent_path == NULL) {
+    set_errno(E_NOMEM);
+    return -1;
+  }
+  strcpy(parent_path, path);
+
+  /* Split parent path and name. */
+  name = strrchr(parent_path, '/');
+  *name = '\0';
+  name ++;
+
+  /* Load parent. */
+  if (* parent_path == '\0')
+    parent = vfs_root_dentry;
+  else
+    parent = vfs_lookup(parent_path);
+
+  /* If parent doesn't exist, quit. */
+  if (parent == NULL) {
+    kfree(parent_path);
+    /* lookup set errno. */
+    return -1;
+  }
+
+  /* Check the cache. */
+  dentry = vfs_dentry_get(parent, name);
+  if (dentry == NULL) {
+    kfree(parent_path);
+    set_errno(E_NOMEM);
+    return -1;
+  }
+
+  /* If dentry was already there and loaded we can quit. */
+  if (dentry->d_vno != 0) {
+    kfree(parent_path);
+    set_errno(E_EXIST);
+    return -1;
+  }
+
+  /* Load parent node. */
+  parent_node = vfs_node_from_dentry(parent);
+  if (parent_node == NULL) {
+    vfs_dentry_reset(dentry);
+    kfree(parent_path);
+    /* something really bad happened. */
+    return -1;
+  }
+
+  /* Check parent is a directory. */
+  if (FILE_TYPE(parent_node->v_mode) != FILE_TYPE_DIRECTORY) {
+    vfs_vnode_release(parent_node);
+    vfs_dentry_reset(dentry);
+    kfree(parent_path);
+    set_errno(E_NODIR);
+    return -1;
+  }
+
+  switch (FILE_TYPE(mode)) {
+    case FILE_TYPE_DIRECTORY:
+      r = parent_node->v_iops.mkdir(parent_node, dentry, mode);
+      break;
+    case FILE_TYPE_REGULAR:
+      r = parent_node->v_iops.create(parent_node, dentry, mode);
+      break;
+    case FILE_TYPE_CHAR_DEV:
+    case FILE_TYPE_BLOCK_DEV:
+    case FILE_TYPE_SOCKET:
+    case FILE_TYPE_FIFO:
+      r = parent_node->v_iops.mknod(parent_node, dentry, mode, devid);
+      break;
+    case FILE_TYPE_SYMLINK:
+      set_errno(E_NOTIMP);
+      r = -1;
+      break;
+    default:
+      set_errno(E_INVAL);
+      r = -1;
+      break;
+  }
+
+  /* Request the dir creation. */
+  if (r == -1) {
+    err = get_errno();
+    vfs_vnode_release(parent_node);
+    vfs_dentry_reset(dentry);
+    kfree(parent_path);
+    set_errno(err);
+    return -1;
+  }
+
+  /* Release the parent node because we are done with it. */
+  vfs_vnode_release(parent_node);
+  kfree(parent_path);
+
+  return 0;
+}
+
+
+/*****************************************************************************/
+/* Lookup ********************************************************************/
+/*****************************************************************************/
 
 /* Looks up a path. */
 static vfs_dentry_t * vfs_lookup(char *path) {
@@ -615,45 +737,43 @@ static vfs_dentry_t * vfs_lookup(char *path) {
     /* Since vfs_dentry_get always returns a dentry we need to check whether
      * it's a new one or not. If a dentry was found then it has a node number,
      * whether it be a normal dentry or a mountpoint because mountpoints must
-     * exist as directories in their own superblocks.  */
-    if (obj->d_vno != 0) {
-      kfree(tmp_path);
-      return obj;
-    }
+     * exist as directories in their own superblocks. So, if it's a new one
+     * it ino will be 0. */
+    if (obj->d_vno == 0) {
+      /* Load the node associated with the parent dentry. This depends on the
+       * dentry type. */
+      parent_node = vfs_node_from_dentry(parent_dentry);
 
-    /* Load the node associated with the parent dentry. This depends on the
-     * dentry type. */
-    parent_node = vfs_node_from_dentry(parent_dentry);
+      /* If the node doesn't exist just quit. */
+      if (parent_node == NULL) {
+        vfs_dentry_reset(obj);
+        kfree(tmp_path);
+        set_errno(E_CORRUPT);
+        return NULL;
+      }
 
-    /* If the node doesn't exist just quit. */
-    if (parent_node == NULL) {
-      vfs_dentry_reset(obj);
-      kfree(tmp_path);
-      set_errno(E_CORRUPT);
-      return NULL;
-    }
+      /* Check the node we got is indeed a directory. */
+      if (FILE_TYPE(parent_node->v_mode) != FILE_TYPE_DIRECTORY) {
+        vfs_dentry_reset(obj);
+        vfs_vnode_release(parent_node);
+        kfree(tmp_path);
+        set_errno(E_NODIR);
+        return NULL;
+      }
 
-    /* Check the node we got is indeed a directory. */
-    if (FILE_TYPE(parent_node->v_mode) != FILE_TYPE_DIRECTORY) {
-      vfs_dentry_reset(obj);
+      /* Ask the node to lookup a dentry with the given name. */
+      if (parent_node->v_iops.lookup(parent_node, obj) == -1) {
+        err = get_errno();
+        vfs_dentry_reset(obj);
+        vfs_vnode_release(parent_node);
+        kfree(tmp_path);
+        set_errno(err);
+        return NULL;
+      }
+
+      /* It seems everything went well, so we need the vnode no more. */
       vfs_vnode_release(parent_node);
-      kfree(tmp_path);
-      set_errno(E_NODIR);
-      return NULL;
     }
-
-    /* Ask the node to lookup a dentry with the given name. */
-    if (parent_node->v_iops.lookup(parent_node, obj) == -1) {
-      err = get_errno();
-      vfs_dentry_reset(obj);
-      vfs_vnode_release(parent_node);
-      kfree(tmp_path);
-      set_errno(err);
-      return NULL;
-    }
-
-    /* It seems everything went well, so we need the vnode no more. */
-    vfs_vnode_release(parent_node);
 
     /* At this point we have our objective correctly loaded in obj. Let's
      * set parent_dentry to obj in case we need to keep going. */
@@ -664,6 +784,7 @@ static vfs_dentry_t * vfs_lookup(char *path) {
   /* Here, whatever we have in hand is our goal, isn't it? */
   return obj;
 }
+
 
 /*****************************************************************************/
 /* Modules API ***************************************************************/
@@ -681,8 +802,6 @@ int vfs_init() {
 
   return 0;
 }
-
-
 
 /*****************************************************************************/
 /* Public VFS API ************************************************************/
@@ -838,94 +957,24 @@ int vfs_stat(char *path, struct stat *stat) {
 
 /* Create a directory. */
 int vfs_mkdir(char *path, mode_t mode) {
-  char *parent_path, *name;
-  vfs_dentry_t *parent, *dentry;
-  vfs_vnode_t *parent_node;
-
-  /* TODO: Rememer to do sanitation. */
-
-  /* Let's forbid trying to create "/". */
-  if (strcmp(path, "/") == 0) {
-    set_errno(E_ACCESS);
-    return -1;
-  }
-
-  /* Copy the path since we're going to alter it. */
-  parent_path = (char *)kalloc(strlen(path) + 1);
-  if (parent_path == NULL) {
-    set_errno(E_NOMEM);
-    return -1;
-  }
-  strcpy(parent_path, path);
-
-  /* Split parent path and name. */
-  name = strrchr(parent_path, '/');
-  *name = '\0';
-  name ++;
-
-  /* Load parent. */
-  if (* parent_path == '\0')
-    parent = vfs_root_dentry;
-  else
-    parent = vfs_lookup(parent_path);
-
-  /* If parent doesn't exist, quit. */
-  if (parent == NULL) {
-    kfree(parent_path);
-    /* lookup set errno. */
-    return -1;
-  }
-
-  /* Check the cache. */
-  dentry = vfs_dentry_get(parent, name);
-  if (dentry == NULL) {
-    kfree(parent_path);
-    set_errno(E_NOMEM);
-    return -1;
-  }
-
-  /* If dentry was already there and loaded we can quit. */
-  if (dentry->d_vno != 0) {
-    kfree(parent_path);
-    set_errno(E_EXIST);
-    return -1;
-  }
-
-  /* Load parent node. */
-  parent_node = vfs_node_from_dentry(parent);
-  if (parent_node == NULL) {
-    vfs_dentry_reset(dentry);
-    kfree(parent_path);
-    /* something really bad happened. */
-    return -1;
-  }
-
-  /* Check parent is a directory. */
-  if (FILE_TYPE(parent_node->v_mode) != FILE_TYPE_DIRECTORY) {
-    vfs_vnode_release(parent_node);
-    vfs_dentry_reset(dentry);
-    kfree(parent_path);
-    set_errno(E_NODIR);
-    return -1;
-  }
-
   /* Just avoid problems with the mode. */
-  mode = VFS_SET_FILE_TYPE(mode, FILE_TYPE_DIRECTORY);
+  return vfs_create_node(path,
+                         VFS_SET_FILE_TYPE(mode, FILE_TYPE_DIRECTORY),
+                         FILE_NODEV);
+}
 
-  /* Request the dir creation. */
-  if (parent_node->v_iops.mkdir(parent_node, dentry, mode) == -1) {
-    vfs_vnode_release(parent_node);
-    vfs_dentry_reset(dentry);
-    kfree(parent_path);
-    /* errno was set. */
-    return -1;
+/* mknod. */
+int vfs_mknod(char *path, mode_t mode, dev_t dev) {
+  switch (FILE_TYPE(mode)) {
+    case FILE_TYPE_DIRECTORY:
+    case FILE_TYPE_REGULAR:
+    case FILE_TYPE_SYMLINK:
+      set_errno(E_INVAL);
+      return -1;
+    break;
   }
-
-  /* Release the parent node because we are done with it. */
-  vfs_vnode_release(parent_node);
-  kfree(parent_path);
-
-  return 0;
+  /* Just avoid problems with the mode. */
+  return vfs_create_node(path, mode, dev);
 }
 
 

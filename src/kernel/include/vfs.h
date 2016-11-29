@@ -322,5 +322,6 @@ int vfs_init();
 int vfs_mount(dev_t devid, char *path, char *fs_type);
 int vfs_stat(char *path, struct stat *stat);
 int vfs_mkdir(char *path, mode_t mode);
+int vfs_mknod(char *path, mode_t mode, dev_t dev);
 
 #endif
