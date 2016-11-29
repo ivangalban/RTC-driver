@@ -243,3 +243,22 @@ int sprintf(char *dst, char *fmt, ...) {
   }
   return count;
 }
+
+char * strchr(char *s, char c) {
+  for (; *s != 0 && *s != c; s ++);
+
+  if (*s == 0) return NULL;
+  return s;
+}
+
+char * strrchr(char *s, char c) {
+  char *p;
+
+  for (p = NULL; *s != 0; s ++) {
+    if (*s == c) {
+      p = s;
+    }
+  }
+
+  return p;
+}

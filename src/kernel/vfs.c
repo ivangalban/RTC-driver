@@ -55,9 +55,10 @@
 #include <string.h>
 #include <errors.h>
 
+#define VFS_MAX_FILES             1024
+#define VFS_DEFAULT_BLK_SIZE      1024
+#define VFS_SET_FILE_TYPE(m, t)   (((m) & 0x0fff) | ((t) & 0xf000))
 
-#define VFS_MAX_FILES         1024
-#define VFS_DEFAULT_BLK_SIZE  1024
 
 /* Open files. */
 static list_t vfs_files;
@@ -560,6 +561,18 @@ static int vfs_vnode_unmount_sb(vfs_sb_t *sb) {
 /* Lookup ********************************************************************/
 /*****************************************************************************/
 
+/* Just a helper function to check the dentry type and load the backing node.
+ * It's just here because I've found myself typing this too much. */
+static vfs_vnode_t * vfs_node_from_dentry(vfs_dentry_t *d) {
+  /* Get the backing node. */
+  if (d->ro.d_mnt_sb == NULL) {
+    return vfs_vnode_get_or_read(d->ro.d_sb, d->d_vno);
+  }
+  else {
+    return vfs_vnode_get_or_read(d->ro.d_mnt_sb, d->ro.d_mnt_sb->sb_root_vno);
+  }
+}
+
 /* Looks up a path. */
 static vfs_dentry_t * vfs_lookup(char *path) {
   char *tmp_path, *path_comp;
@@ -581,6 +594,7 @@ static vfs_dentry_t * vfs_lookup(char *path) {
     set_errno(E_NOMEM);
     return NULL;
   }
+  strcpy(tmp_path, path);
 
   /* Load root dentry. */
   obj = vfs_root_dentry;
@@ -603,25 +617,14 @@ static vfs_dentry_t * vfs_lookup(char *path) {
      * whether it be a normal dentry or a mountpoint because mountpoints must
      * exist as directories in their own superblocks.  */
     if (obj->d_vno != 0) {
-      vfs_dentry_reset(obj);
       kfree(tmp_path);
-      set_errno(E_NOENT);
       return obj;
     }
 
     /* Load the node associated with the parent dentry. This depends on the
      * dentry type. */
-    if (parent_dentry->ro.d_mnt_sb == NULL) {
-      /* A normal dentry can directly use the dentry vno. */
-      parent_node = vfs_vnode_get_or_read(parent_dentry->ro.d_sb,
-                                          parent_dentry->d_vno);
-    }
-    else {
-      /* A mounpoint must use the mounted superblock and its root vno. */
-      parent_node =
-        vfs_vnode_get_or_read(parent_dentry->ro.d_mnt_sb,
-                              parent_dentry->ro.d_mnt_sb->sb_root_vno);
-    }
+    parent_node = vfs_node_from_dentry(parent_dentry);
+
     /* If the node doesn't exist just quit. */
     if (parent_node == NULL) {
       vfs_dentry_reset(obj);
@@ -678,6 +681,8 @@ int vfs_init() {
 
   return 0;
 }
+
+
 
 /*****************************************************************************/
 /* Public VFS API ************************************************************/
@@ -814,12 +819,7 @@ int vfs_stat(char *path, struct stat *stat) {
   }
 
   /* Get the backing node. */
-  if (d->ro.d_mnt_sb == NULL) {
-    n = vfs_vnode_get_or_read(d->ro.d_sb, d->d_vno);
-  }
-  else {
-    n = vfs_vnode_get_or_read(d->ro.d_mnt_sb, d->ro.d_mnt_sb->sb_root_vno);
-  }
+  n = vfs_node_from_dentry(d);
 
   if (n == NULL) {
     /* errno was already set. */
@@ -832,6 +832,98 @@ int vfs_stat(char *path, struct stat *stat) {
   stat->dev = n->v_dev;
 
   vfs_vnode_release(n);
+
+  return 0;
+}
+
+/* Create a directory. */
+int vfs_mkdir(char *path, mode_t mode) {
+  char *parent_path, *name;
+  vfs_dentry_t *parent, *dentry;
+  vfs_vnode_t *parent_node;
+
+  /* TODO: Rememer to do sanitation. */
+
+  /* Let's forbid trying to create "/". */
+  if (strcmp(path, "/") == 0) {
+    set_errno(E_ACCESS);
+    return -1;
+  }
+
+  /* Copy the path since we're going to alter it. */
+  parent_path = (char *)kalloc(strlen(path) + 1);
+  if (parent_path == NULL) {
+    set_errno(E_NOMEM);
+    return -1;
+  }
+  strcpy(parent_path, path);
+
+  /* Split parent path and name. */
+  name = strrchr(parent_path, '/');
+  *name = '\0';
+  name ++;
+
+  /* Load parent. */
+  if (* parent_path == '\0')
+    parent = vfs_root_dentry;
+  else
+    parent = vfs_lookup(parent_path);
+
+  /* If parent doesn't exist, quit. */
+  if (parent == NULL) {
+    kfree(parent_path);
+    /* lookup set errno. */
+    return -1;
+  }
+
+  /* Check the cache. */
+  dentry = vfs_dentry_get(parent, name);
+  if (dentry == NULL) {
+    kfree(parent_path);
+    set_errno(E_NOMEM);
+    return -1;
+  }
+
+  /* If dentry was already there and loaded we can quit. */
+  if (dentry->d_vno != 0) {
+    kfree(parent_path);
+    set_errno(E_EXIST);
+    return -1;
+  }
+
+  /* Load parent node. */
+  parent_node = vfs_node_from_dentry(parent);
+  if (parent_node == NULL) {
+    vfs_dentry_reset(dentry);
+    kfree(parent_path);
+    /* something really bad happened. */
+    return -1;
+  }
+
+  /* Check parent is a directory. */
+  if (FILE_TYPE(parent_node->v_mode) != FILE_TYPE_DIRECTORY) {
+    vfs_vnode_release(parent_node);
+    vfs_dentry_reset(dentry);
+    kfree(parent_path);
+    set_errno(E_NODIR);
+    return -1;
+  }
+
+  /* Just avoid problems with the mode. */
+  mode = VFS_SET_FILE_TYPE(mode, FILE_TYPE_DIRECTORY);
+
+  /* Request the dir creation. */
+  if (parent_node->v_iops.mkdir(parent_node, dentry, mode) == -1) {
+    vfs_vnode_release(parent_node);
+    vfs_dentry_reset(dentry);
+    kfree(parent_path);
+    /* errno was set. */
+    return -1;
+  }
+
+  /* Release the parent node because we are done with it. */
+  vfs_vnode_release(parent_node);
+  kfree(parent_path);
 
   return 0;
 }

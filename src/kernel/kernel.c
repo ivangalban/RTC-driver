@@ -73,6 +73,11 @@ void kmain2() {
   /* Mount rootfs on "/" */
   vfs_mount(ROOTFS_DEVID, "/", ROOTFS_NAME);
   vfs_stat("/", &st);
+  vfs_mkdir("/lola", 0644);
+  vfs_mkdir("/lola/flores", 0777);
+  vfs_stat("/lola/flores", &st);
+  fb_printf("/lola/flores: { st.ino = %dd, st.size = %dd, st.mode = %wo }\n",
+            st.ino, st.size, st.mode);
 
   /* Initializes the dev subsystem. */
   dev_init();

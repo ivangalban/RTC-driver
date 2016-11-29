@@ -21,4 +21,8 @@ int memcmp(void *p1, void *p2, u32 count);
 
 int sprintf(char *dst, char *format, ...);
 
+char * strchr(char *s, char c);
+
+char * strrchr(char *s, char c);
+
 #endif
