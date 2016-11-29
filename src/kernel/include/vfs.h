@@ -46,56 +46,22 @@
 #include <devices.h>
 #include <list.h>
 
-#define FILE_MAX_NAME_LEN           32  /* MINIX only use 30 bytes. */
-
-/*********************************************/
-/*   File mode (i.e. type and permissions)   */
-/*********************************************/
-typedef u16 mode_t;   /* File mode. */
-
-/* File types. */
-#define FILE_TYPE_UNKNOWN       0x0000
-#define FILE_TYPE_FIFO          0x1000
-#define FILE_TYPE_CHAR_DEV      0x2000
-#define FILE_TYPE_DIRECTORY     0x4000
-#define FILE_TYPE_BLOCK_DEV     0x6000
-#define FILE_TYPE_REGULAR       0x8000
-#define FILE_TYPE_SYMLINK       0xa000
-#define FILE_TYPE_SOCKET        0xc000
-#define FILE_TYPE_WHT           0xe000 /* Found in the Linux kernel, though I
-                                        * don't recognize it. */
-#define FILE_TYPE(mode)         ((mode) & 0xf000)  /* ==> file type */
-
-/* POSIX-compliant permissions. */
-#define FILE_PERM_SETUID        0x0800
-#define FILE_PERM_SETGID        0x0400
-#define FILE_PERM_STICKY        0x0200
-#define FILE_PERM_USR_READ      0x0100
-#define FILE_PERM_USR_WRITE     0x0080
-#define FILE_PERM_USR_EXEC      0x0040
-#define FILE_PERM_GRP_READ      0x0020
-#define FILE_PERM_GRP_WRITE     0x0010
-#define FILE_PERM_GRP_EXEC      0x0008
-#define FILE_PERM_OTHERS_READ   0x0004
-#define FILE_PERM_OTHERS_WRITE  0x0002
-#define FILE_PERM_OTHERS_EXEC   0x0001
-
-#define FILE_PERM_755           ( FILE_PERM_USR_READ    | \
-                                  FILE_PERM_USR_WRITE   | \
-                                  FILE_PERM_USR_EXEC    | \
-                                  FILE_PERM_GRP_READ    | \
-                                  FILE_PERM_GRP_EXEC    | \
-                                  FILE_PERM_OTHERS_READ | \
-                                  FILE_PERM_OTHERS_EXEC )
+#define FILE_PERM_755               ( FILE_PERM_USR_READ    | \
+                                      FILE_PERM_USR_WRITE   | \
+                                      FILE_PERM_USR_EXEC    | \
+                                      FILE_PERM_GRP_READ    | \
+                                      FILE_PERM_GRP_EXEC    | \
+                                      FILE_PERM_OTHERS_READ | \
+                                      FILE_PERM_OTHERS_EXEC )
 
 /* Use this if you want to set v_dev on a non-device file. */
-#define FILE_NODEV              0
+#define FILE_NODEV                  0
 
 /* File open status. Once a file is opened and in use, these flags control
  * which operations can be performed on them. */
-#define FILE_FMODE_READ   0x0001  /* File is readable. */
-#define FILE_FMODE_WRITE  0x0002  /* File is writtable. */
-#define FILE_FMODE_LSEEK  0x0004  /* File is seekable. */
+#define FILE_FMODE_READ             0x0001  /* File is readable. */
+#define FILE_FMODE_WRITE            0x0002  /* File is writtable. */
+#define FILE_FMODE_LSEEK            0x0004  /* File is seekable. */
 
 
 /******************************/
@@ -125,8 +91,9 @@ typedef struct vfs_file_operations        vfs_file_operations_t;
 struct vfs_fs_type_operations {
   /* Tries to identify a superblock. The device is identified by sb->sb_devid.
    * In case of success, the filesystem type must put the right values in the
-   * superblock structure and return non -1. In case of failure it must
-   * return -1 and leave the structure intact. */
+   * sb_ops field of the superblock structure and return non -1. The rest of
+   * the fields can be also set, but are not mandatory at this moment. In case
+   * of failure it must return -1 and leave the structure intact. */
   int (* ft_get_sb) (vfs_sb_t *sb);
 
   /* Deallocates a given superblock, releasing all resources associated.
@@ -353,5 +320,6 @@ int vfs_init();
 /* API ***********************************************************************/
 /*****************************************************************************/
 int vfs_mount(dev_t devid, char *path, char *fs_type);
+int vfs_stat(char *path, struct stat *stat);
 
 #endif

@@ -55,6 +55,7 @@ void kmain2() {
   dev_char_device_t *s;
   char *msg = "You pressed ESC.\n";
   int i;
+  struct stat st;
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -71,6 +72,7 @@ void kmain2() {
 
   /* Mount rootfs on "/" */
   vfs_mount(ROOTFS_DEVID, "/", ROOTFS_NAME);
+  vfs_stat("/", &st);
 
   /* Initializes the dev subsystem. */
   dev_init();

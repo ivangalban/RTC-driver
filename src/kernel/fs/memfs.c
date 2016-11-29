@@ -95,6 +95,12 @@ static int memfs_node_cmp(void *item, void *ino) {
   return node->ino == *((int *)ino);
 }
 
+/* Looks for a node in a super. */
+static memfs_node_t * memfs_node_lookup(memfs_super_t *ms,
+                                        int ino) {
+  return list_find(&(ms->nodes), memfs_node_cmp, &ino);
+}
+
 /* Allocates a node in its super. */
 static memfs_node_t * memfs_node_alloc(memfs_super_t *ms,
                                        mode_t mode,
@@ -439,8 +445,31 @@ static int memfs_sb_delete_vnode(vfs_sb_t *sb, vfs_vnode_t *node) {
 }
 
 /* Used to notify the superblock it's being mounted. When called the
- * sb_mnt_root field will be partially set: the underlaying */
+ * sb_mnt_root field will be partially set:  */
 static int memfs_sb_mount(vfs_sb_t *sb) {
+  memfs_super_t *ms;
+  memfs_node_t *mn;
+
+  ms = (memfs_super_t *)(sb->private_data);
+
+  /* Check whether this filesystem has been previously mounted or not, i.e.
+   * it has a superblock. */
+  mn = memfs_node_lookup(ms, MEMFS_ROOT_INO);
+  if (mn == NULL) {
+    mn = memfs_node_alloc(ms, FILE_TYPE_DIRECTORY | FILE_PERM_755, FILE_NODEV);
+    if (mn == NULL) {
+      set_errno(E_IO);
+      return -1;
+    }
+    mn->ino = MEMFS_ROOT_INO;
+    if (ms->last_ino <= 1) {
+      ms->last_ino = 2;
+    }
+  }
+
+  sb->sb_root_vno = MEMFS_ROOT_INO;
+  /* TODO: Need to do something about blocks and the like. */
+
   return 0;
 }
 

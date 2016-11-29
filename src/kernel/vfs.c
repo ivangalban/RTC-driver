@@ -556,78 +556,22 @@ static int vfs_vnode_unmount_sb(vfs_sb_t *sb) {
   return -1;
 }
 
-
-
 /*****************************************************************************/
 /* Lookup ********************************************************************/
 /*****************************************************************************/
 
-/* Inspects a dentry looking for a name inside it. */
-static vfs_dentry_t * vfs_lookup_in_dentry(vfs_dentry_t *dir, char *name) {
-  vfs_vnode_t *dir_node;
-  vfs_dentry_t *obj;
-  int err;
-
-  /* First, scan the dentry cache in case it's already loaded. */
-  obj = vfs_dentry_get(dir, name);
-  if (obj == NULL) {
-    set_errno(E_LIMIT);
-    return NULL;
-  }
-
-  /* If a dentry was fount then it has a node number, whether it be a normal
-   * dentry or a mountpoint because mountpoints must exist as directories in
-   * their own superblocks. */
-  if (obj->d_vno != 0) {
-    return obj;
-  }
-
-  /* From now on obj is a new dentry, so we can safely reset it when we need
-   * it no more. */
-
-  /* Load the node associated with the parent dentry. */
-  if (dir->ro.d_mnt_sb == NULL) {
-    /* A normal dentry can directly use the dentry vno. */
-    dir_node = vfs_vnode_get_or_read(dir->ro.d_sb, dir->d_vno);
-  }
-  else {
-    /* A mounpoint must use the mounted superblock and its root vno. */
-    dir_node = vfs_vnode_get_or_read(dir->ro.d_mnt_sb,
-                                     dir->ro.d_mnt_sb->sb_root_vno);
-  }
-  /* If the node doesn't exist just quit. */
-  if (dir_node == NULL) {
-    vfs_dentry_reset(obj);
-    set_errno(E_CORRUPT);
-    return NULL;
-  }
-
-  /* Check the node is a directory. */
-  if (FILE_TYPE(dir_node->v_mode) != FILE_TYPE_DIRECTORY) {
-    vfs_dentry_reset(obj);
-    vfs_vnode_release(dir_node);
-    set_errno(E_NODIR);
-    return NULL;
-  }
-
-  /* Ask the node to lookup a dentry with the given name. */
-  if (dir_node->v_iops.lookup(dir_node, obj) == -1) {
-    err = get_errno();
-    vfs_dentry_reset(obj);
-    vfs_vnode_release(dir_node);
-    set_errno(err);
-    return NULL;
-  }
-
-  /* It seems everything's fine, so we need the vnode no more. */
-  vfs_vnode_release(dir_node);
-  return obj;
-}
-
 /* Looks up a path. */
 static vfs_dentry_t * vfs_lookup(char *path) {
   char *tmp_path, *path_comp;
-  vfs_dentry_t *obj;
+  vfs_dentry_t *parent_dentry, *obj;
+  vfs_vnode_t *parent_node;
+  int err;
+
+  /* If nothing is mounted just quit. */
+  if (vfs_root_dentry == NULL) {
+    set_errno(E_NOENT);
+    return NULL;
+  }
 
   /* TODO: Do some sanitation to paths. We assume path starts with "/". */
 
@@ -638,24 +582,84 @@ static vfs_dentry_t * vfs_lookup(char *path) {
     return NULL;
   }
 
-  /* Load root vnode. */
+  /* Load root dentry. */
   obj = vfs_root_dentry;
+  parent_dentry = vfs_root_dentry;
   path_comp = strtok(tmp_path, '/');
 
   /* Go down until you find a the objective. */
   while (path_comp != NULL) {
-    obj = vfs_lookup_in_dentry(obj, path_comp);
-    /* Not found or error. */
+    /* First, scan the dentry cache in case it's already loaded. */
+    obj = vfs_dentry_get(parent_dentry, path_comp);
     if (obj == NULL) {
+      set_errno(E_LIMIT); /* This should not happen unless we have reached a
+                           * hundred mountpoints. */
       kfree(tmp_path);
       return NULL;
     }
+
+    /* Since vfs_dentry_get always returns a dentry we need to check whether
+     * it's a new one or not. If a dentry was found then it has a node number,
+     * whether it be a normal dentry or a mountpoint because mountpoints must
+     * exist as directories in their own superblocks.  */
+    if (obj->d_vno != 0) {
+      vfs_dentry_reset(obj);
+      kfree(tmp_path);
+      set_errno(E_NOENT);
+      return obj;
+    }
+
+    /* Load the node associated with the parent dentry. This depends on the
+     * dentry type. */
+    if (parent_dentry->ro.d_mnt_sb == NULL) {
+      /* A normal dentry can directly use the dentry vno. */
+      parent_node = vfs_vnode_get_or_read(parent_dentry->ro.d_sb,
+                                          parent_dentry->d_vno);
+    }
+    else {
+      /* A mounpoint must use the mounted superblock and its root vno. */
+      parent_node =
+        vfs_vnode_get_or_read(parent_dentry->ro.d_mnt_sb,
+                              parent_dentry->ro.d_mnt_sb->sb_root_vno);
+    }
+    /* If the node doesn't exist just quit. */
+    if (parent_node == NULL) {
+      vfs_dentry_reset(obj);
+      kfree(tmp_path);
+      set_errno(E_CORRUPT);
+      return NULL;
+    }
+
+    /* Check the node we got is indeed a directory. */
+    if (FILE_TYPE(parent_node->v_mode) != FILE_TYPE_DIRECTORY) {
+      vfs_dentry_reset(obj);
+      vfs_vnode_release(parent_node);
+      kfree(tmp_path);
+      set_errno(E_NODIR);
+      return NULL;
+    }
+
+    /* Ask the node to lookup a dentry with the given name. */
+    if (parent_node->v_iops.lookup(parent_node, obj) == -1) {
+      err = get_errno();
+      vfs_dentry_reset(obj);
+      vfs_vnode_release(parent_node);
+      kfree(tmp_path);
+      set_errno(err);
+      return NULL;
+    }
+
+    /* It seems everything went well, so we need the vnode no more. */
+    vfs_vnode_release(parent_node);
+
+    /* At this point we have our objective correctly loaded in obj. Let's
+     * set parent_dentry to obj in case we need to keep going. */
+    parent_dentry = obj;
     path_comp = strtok(NULL, '/');
   }
 
-  /* TODO: Here. */
-
-  return NULL;
+  /* Here, whatever we have in hand is our goal, isn't it? */
+  return obj;
 }
 
 /*****************************************************************************/
@@ -678,6 +682,8 @@ int vfs_init() {
 /*****************************************************************************/
 /* Public VFS API ************************************************************/
 /*****************************************************************************/
+
+/* Mounts device devid in path using filesystem type fs_type. */
 int vfs_mount(dev_t devid, char *path, char *fs_type) {
   vfs_fs_type_t *ft;
   vfs_vnode_t *n;
@@ -700,6 +706,8 @@ int vfs_mount(dev_t devid, char *path, char *fs_type) {
         set_errno(E_NOMEM);
         return -1;
       }
+      d->d_vno = 1; /* This is just to avoid the initial root with no backing
+                     * node breaks the system. Really? */
     }
   }
   else {
@@ -793,6 +801,41 @@ int vfs_mount(dev_t devid, char *path, char *fs_type) {
 
   return 0;
 }
+
+/* Does stat. */
+int vfs_stat(char *path, struct stat *stat) {
+  vfs_dentry_t *d;
+  vfs_vnode_t *n;
+
+  d = vfs_lookup(path);
+  if (d == NULL) {
+    /* errno was already set. */
+    return -1;
+  }
+
+  /* Get the backing node. */
+  if (d->ro.d_mnt_sb == NULL) {
+    n = vfs_vnode_get_or_read(d->ro.d_sb, d->d_vno);
+  }
+  else {
+    n = vfs_vnode_get_or_read(d->ro.d_mnt_sb, d->ro.d_mnt_sb->sb_root_vno);
+  }
+
+  if (n == NULL) {
+    /* errno was already set. */
+    return -1;
+  }
+
+  stat->ino = n->v_no;
+  stat->size = n->v_size;
+  stat->mode = n->v_mode;
+  stat->dev = n->v_dev;
+
+  vfs_vnode_release(n);
+
+  return 0;
+}
+
 
 /* Unmounts a mounted superblock. */
 int vfs_sb_unmount(vfs_sb_t *sb) {
