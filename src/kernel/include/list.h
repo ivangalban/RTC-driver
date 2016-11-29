@@ -31,8 +31,9 @@ typedef struct __list {
 void list_init(list_t *);
 int list_add(list_t *, void *);
 void * list_get(list_t *, int);
-int list_del(list_t *, int);
+void * list_del(list_t *, int);
 void * list_find(list_t *, list_cmp_t, void *);
+void * list_find_del(list_t *, list_cmp_t, void *);
 int list_find_pos(list_t *, list_cmp_t, void *);
 
 #endif

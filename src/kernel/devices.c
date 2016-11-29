@@ -39,13 +39,16 @@ int dev_register_block_device(dev_block_device_t *dev) {
 
 /* Remove block device */
 int dev_remove_block_device(dev_t devid) {
-  int pos;
+  dev_block_device_t *blk;
 
-  pos = list_find_pos(&blk_devs, dev_blk_list_cmp, &devid);
-  if (pos == -1)
+  blk = (dev_block_device_t *)list_find_del(&blk_devs,
+                                            dev_blk_list_cmp,
+                                            &devid);
+  if (blk == NULL) {
     return -1;
-
-  return list_del(&blk_devs, pos);
+  }
+  /* TODO: Check if we should free this. */
+  return 0;
 }
 
 /* Get block device */
@@ -71,13 +74,17 @@ int dev_register_char_device(dev_char_device_t *dev) {
 
 /* Remove char device */
 int dev_remove_char_device(dev_t devid) {
-  int pos;
+  dev_char_device_t *chr;
 
-  pos = list_find_pos(&chr_devs, dev_chr_list_cmp, &devid);
-  if (pos == -1)
+  chr = (dev_char_device_t *)list_find_del(&chr_devs,
+                                           dev_chr_list_cmp,
+                                           &devid);
+
+  if (chr == NULL)
     return -1;
 
-  return list_del(&chr_devs, pos);
+  /* TODO: Check if we need to free the object. */
+  return 0;
 }
 
 /* Get char device */

@@ -7,6 +7,8 @@
 #include <kb.h>
 #include <errors.h>
 #include <devices.h>
+#include <vfs.h>
+#include <fs/rootfs.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -61,10 +63,19 @@ void kmain2() {
   /* Set up the interrupt subsytem. */
   itr_set_up();
 
+  /* Initialize the Virtual File System. */
+  vfs_init();
+
+  /* Intializes the rootfs. */
+  rootfs_init();
+
+  /* Mount rootfs on "/" */
+  vfs_mount(ROOTFS_DEVID, "/", ROOTFS_NAME);
+
   /* Initializes the dev subsystem. */
   dev_init();
 
-  /* Complete memory initialization. */
+  /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
 
   /* Initializes the PICs. This mask all interrupts. */

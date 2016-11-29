@@ -23,9 +23,8 @@ typedef __builtin_va_list         va_list;
 #define va_end(v)                  __builtin_va_end(v)
 #define va_arg(v, l)               __builtin_va_arg(v, l)
 
-typedef u32                       off_t;   /* Logical byte offset. */
-typedef u32                       size_t;  /* Logical size in bytes. */
-typedef u32                       soff_t;  /* Logical block offset. */
-typedef u32                       ssize_t; /* Logical size in blocks. */
+typedef u32                       off_t;   /* offsets. */
+typedef u32                       size_t;  /* sizes. */
+typedef s32                       ssize_t; /* Signed version of size_t. */
 
 #endif

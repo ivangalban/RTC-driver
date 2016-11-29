@@ -83,15 +83,15 @@ typedef u16   dev_mode_t;
 int dev_blk_open(dev_t, int);
 /* Release a block device from use. */
 int dev_blk_release(dev_t);
-int dev_blk_read(dev_t, char *, soff_t, ssize_t);
-int dev_blk_write(dev_t, char *, soff_t, ssize_t);
+int dev_blk_read(dev_t, char *, off_t, size_t);
+int dev_blk_write(dev_t, char *, off_t, size_t);
 int dev_blk_flush(dev_t);
 int dev_blk_ioctl(dev_t, u32, void *);
 
 int dev_chr_open(dev_t, int);
 int dev_chr_release(dev_t);
-int dev_chr_read(dev_t, char *, ssize_t);
-int dev_chr_write(dev_t, char *, ssize_t);
+int dev_chr_read(dev_t, char *, size_t);
+int dev_chr_write(dev_t, char *, size_t);
 int dev_chr_flush(dev_t);
 int dev_chr_ioctl(dev_t, u32, void *);
 
@@ -120,7 +120,7 @@ struct dev_block_device {
   int count;                            /* Reference count. */
   dev_mode_t mode;                      /* Current open mode. */
   size_t sector_size;                   /* Sector size in bytes. */
-  ssize_t sectors;                      /* Total sectors. */
+  size_t sectors;                      /* Total sectors. */
 
   dev_block_device_operations_t *ops;   /* Operations. */
 };
@@ -132,9 +132,9 @@ struct dev_block_device_operations {
   /* Used to release the device. */
   int (* release) (dev_block_device_t *);
   /* Read some blocks. */
-  int (* read) (dev_block_device_t *, char *, soff_t, ssize_t);
+  int (* read) (dev_block_device_t *, char *, off_t, size_t);
   /* Write some blocks. */
-  int (* write) (dev_block_device_t *, char *, soff_t, ssize_t);
+  int (* write) (dev_block_device_t *, char *, off_t, size_t);
   /* Flush cached data. */
   int (* flush) (dev_block_device_t *);
   /* Do ioctl. */

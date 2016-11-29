@@ -2,19 +2,18 @@
  * First, there will be filesystem types. Each type will be responsible of
  * identifying filesystem on every partition scanned on a new device or when
  * "special" filesystems (e.g. rootfs, devfs) are initialized. This process
- * should return a superblock if the identification succeeds.
+ * should return a superblock if the identification succeeds. Filesystem types
+ * are identified by their names, i.e. a string.
  *
  * Then we'll have superblocks. Each superblock will contain the filesystem-
  * level operations (e.g. mount, unmount, get_inode), which will be used when
- * the filesystem gets mounted into a mountpoint.
- *
- * A mountpoint is a structure holding both a superblock and a dentry in a
- * parent filesystem. This dentry must be of type directory and its content
- * will be those of the mounted filesystem's root directory.
+ * the filesystem gets mounted into a mountpoint. Unlike Linux, we will only
+ * allow a superblock to be mounted once because it's simpler.
  *
  * Dentries are structures associated to filesystems via mountpoints or to
  * files via vnodes. They hold the name of the dentry, the parent dentry in the
- * filesystem tree and the vnode they refer to.
+ * filesystem tree and the vnode or mounted superblock they refer to.
+ * Dentries are identified by their name and their parent dentry.
  *
  * VNodes represent regular files and directories in a given filesystem, as
  * well as devices and special files (e.g. pipes). They are identified by a
@@ -45,6 +44,7 @@
 
 #include <typedef.h>
 #include <devices.h>
+#include <list.h>
 
 #define FILE_MAX_NAME_LEN           32  /* MINIX only use 30 bytes. */
 
@@ -80,6 +80,17 @@ typedef u16 mode_t;   /* File mode. */
 #define FILE_PERM_OTHERS_WRITE  0x0002
 #define FILE_PERM_OTHERS_EXEC   0x0001
 
+#define FILE_PERM_755           ( FILE_PERM_USR_READ    | \
+                                  FILE_PERM_USR_WRITE   | \
+                                  FILE_PERM_USR_EXEC    | \
+                                  FILE_PERM_GRP_READ    | \
+                                  FILE_PERM_GRP_EXEC    | \
+                                  FILE_PERM_OTHERS_READ | \
+                                  FILE_PERM_OTHERS_EXEC )
+
+/* Use this if you want to set v_dev on a non-device file. */
+#define FILE_NODEV              0
+
 /* File open status. Once a file is opened and in use, these flags control
  * which operations can be performed on them. */
 #define FILE_FMODE_READ   0x0001  /* File is readable. */
@@ -106,222 +117,241 @@ typedef struct vfs_vnode_operations       vfs_vnode_operations_t;
 typedef struct vfs_file                   vfs_file_t;
 typedef struct vfs_file_operations        vfs_file_operations_t;
 
-/** Filesystem types. **/
-struct vfs_fs_type {
-  char                      * ft_name;  /* FS type name. */
-  int                         ft_count; /* Superblocks of this type in use. */
-  list_t                      ft_sbs;   /* Superblocks of this type. */
-  vfs_fs_type_operations_t  * ft_ops;   /* FS type operations. */
-};
+/*****************************************************************************/
+/* Filesystem types. *********************************************************/
+/*****************************************************************************/
+
 /* Filesystem type operations. */
 struct vfs_fs_type_operations {
-  /* Tries to identify a partition in the given device_path. If successful
-   * it should return a superblock, otherwise NULL. Special devices like
-   * devfs will receive hardcoded strings during initialization instead of
-   * a real path. */
-  vfs_sb_t * (ft_get_sb *) (char *path);
+  /* Tries to identify a superblock. The device is identified by sb->sb_devid.
+   * In case of success, the filesystem type must put the right values in the
+   * superblock structure and return non -1. In case of failure it must
+   * return -1 and leave the structure intact. */
+  int (* ft_get_sb) (vfs_sb_t *sb);
 
-  /* Deallocates a given superblock, releasing all resources associated. */
-  void * (fs_kill_fs *) (vfs_sb_t *fs);
+  /* Deallocates a given superblock, releasing all resources associated.
+   * Probably due to the device being ejected, which is something we won't
+   * do. It should return non-zero */
+  int (* ft_kill_sb) (vfs_sb_t *sb);
 };
-/* Allocates a filesystem type structure. */
-vfs_fs_type_t * vfs_fs_type_alloc();
-/* Destroys a filesystem type structure. */
-void vfs_fs_type_destroy(vfs_fs_type_t *ft);
-/* Registers a filesystem type. */
-int vfs_fs_type_register(vfs_fs_type_t *ft);
-/* Unregisters a filesystem type. */
-int vfs_fs_type_unregister(vfs_fs_type_t *ft);
-/* Looks up for a filesystem type structure. */
-vfs_fs_type_t * vfs_fs_type_lookup(char *name);
 
-/** Superblocks. **/
-struct vfs_sb {
-  dev_t                         sb_devid;     /* Device ID. */
-  size_t                        sb_blocksize; /* Block size in bytes. */
-  ssize_t                       sb_blocks;    /* Total blocks in partition. */
-  size_t                        sb_max_bytes; /* Maximum file length. */
-  int                           sb_dirty;     /* Superblock is dirty. */
-  vfs_dentry_t                * sb_root;      /* Root dentry. */
-  vfs_fs_type_t               * sb_fs_type;   /* File system type. */
-  vfs_sb_operations_t         * sb_ops;       /* Superblock operations. */
-  list_t                        sb_mps;       /* Mountpoints from this sb. */
-  list_t                        sb_vnodes;    /* vnodes in use. */
-  list_t                        sb_dentries;  /* Dentries in use. */
-  void                        * private_data; /* Private data. */
+/* Filesystem type structure. */
+struct vfs_fs_type {
+  vfs_fs_type_operations_t    ft_ops;       /* FS type operations. */
+  struct vfs_fs_type_ro {
+    char                    * ft_name;      /* FS type name. */
+  } ro;
 };
-/* Superblocks operations. */
+
+
+/* Registration takes place in two steps:
+ * 1. The module registering the filesystem calls
+ *      vfs_register_filesystem_type(name, callback)
+ *    where name is the filesystem type's name and callback is of type
+ *      vfs_fs_type_config_t
+ *    used to configure the filesystem type.
+ * 2. The system will call the passed callback in order to complete
+ *    registration after the filesystem type structure gets allocated. */
+
+typedef int (* vfs_fs_type_config_t) (vfs_fs_type_t *);
+int vfs_fs_type_register(char *name, vfs_fs_type_config_t config);
+
+/*****************************************************************************/
+/* Superblocks. **************************************************************/
+/*****************************************************************************/
+
+#define VFS_SB_F_UNUSED           0x00000000
+
+#define VFS_SB_F_DIRTY            0x00000001
+#define VFS_SB_IS_DIRTY(sb)       ((sb)->sb_flags & VFS_SB_F_DIRTY)
+#define VFS_SB_MARK_DIRTY(sb)     ((sb)->sb_flags |= VFS_SB_F_DIRTY)
+#define VFS_SB_MARK_CLEAN(sb)     ((sb)->sb_flags &= (~VFS_SB_F_DIRTY))
+
+#define VFS_SB_F_MOUNTED          0x00000002
+#define VFS_SB_IS_MOUNTED(sb)     ((sb)->sb_flags & VFS_SB_F_MOUNTED)
+#define VFS_SB_MARK_MOUNTED(sb)   ((sb)->sb_flags |= VFS_SB_F_MOUNTED)
+#define VFS_SB_MARK_UNMOUNTED(sb) ((sb)->sb_flags &= (~VFS_SB_F_MOUNTED))
+
+/* Superblock operations. */
 struct vfs_sb_operations {
-  /* Allocates a vnode in memory. */
-  vfs_vnode_t * (alloc_vnode *) (vfs_sb_t *sb);
+  /* Reads a vnode from the filesystem into node. Only the vnode number is
+   * suppossed to be set and ro.v_sb. */
+  int (* read_vnode) (vfs_sb_t *sb, vfs_vnode_t *node);
 
-  /* Destroys a vnode in memory. */
-  void * (destroy_vnode *) (vfs_vnode_t *node);
+  /* Called when the vnode is about to be deleted from memory. Usually used
+   * to free private_data or do any operation the filesystem needs to.
+   * NOTE: This is meant to physically delete nodes, just to release the
+   * resources associated to a vnode that is no longer in use, for instance,
+   * when the last open file referencing it is closed.
+   * If set to NULL it just won't be called, which is normal in filesystems
+   * that don't need to take any special action when this happens. */
+  int (* destroy_vnode) (vfs_sb_t *sb, vfs_vnode_t *node);
 
-  /* Fills the vnode structure. node.v_no must be set. */
-  int (read_vnode *) (vfs_vnode_t *node);
+  /* Writes a vnode into the filesystem. It is suppossed to be an existent
+   * vnode, which means there should be a vnode number and the rest of the
+   * data. Since data is manipulated via inode operations this is just meant
+   * to save metadata. */
+  int (* write_vnode) (vfs_sb_t *sb, vfs_vnode_t *node);
 
-  /* Writes a vnode into disk. */
-  int (write_vnode *) (vfs_vnode_t *node);
+  /* Removes a vnode from the filesystem. The vnode is suppossed to exist
+   * though only the vnode number and ro.v_sb are guaranteed to be set.
+   * It's not necessary to release any data from the vnode structure since
+   * destroy_vnode will be called inmediately after. */
+  int (* delete_vnode) (vfs_sb_t *sb, vfs_vnode_t *node);
 
-  /* Removes a vnode from disk. */
-  int (delete_vnode *) (vfs_vnode_t *node);
+  /* Used to notify the superblock it's being mounted. */
+  int (* mount) (vfs_sb_t *sb);
 
-  /* Writes superblock */
-  int (write_super *) (vfs_sb_t *sb);
-
-  /* Releases the superblock when not in use. */
-  int (release_super *) (vfs_sb_t *sb);
+  /* Used to nofity the superblock is being unmounted. */
+  int (* unmount) (vfs_sb_t *sb);
 };
-/* Registers a superblock. */
-int vfs_sb_register(vfs_sb_t *sb);
-/* Unregisters a superblock. */
-int vfs_sb_unregister(vfs_sb_t *sb);
-/* Looks up a superblock. */
-vfs_sb_t * vfs_sb_lookup(dev_t devid);
 
-/** Mountpoints **/
-struct vfs_mountpoint {
-  vfs_sb_t                    * m_sb;         /* Superblock. */
-  vfs_dentry_t                * m_dentry;     /* Mountpoint dentry. */
-  vfs_mountpoint_t            * m_parent;     /* Parent mountpoint. */
-  list_t                        m_kids;       /* Child mountpoints. */
-  void                        * private_data; /* Private data. */
+/* The superblock structure. */
+struct vfs_sb {
+  size_t                        sb_blocksize;     /* Block size in bytes. */
+  size_t                        sb_blocks;        /* Total blocks. */
+  size_t                        sb_max_bytes;     /* Maximum file length. */
+  vfs_sb_operations_t           sb_ops;           /* Superblock operations. */
+  int                           sb_root_vno;      /* Root vnode number. */
+  int                           sb_flags;         /* Flags: DIRTY, MOUNTED */
+  void                        * private_data;     /* Private data. */
+  struct vfs_sb_ro {
+    dev_t                       sb_devid;         /* Device ID. */
+    vfs_fs_type_t             * sb_fs_type;       /* File system type. */
+    vfs_dentry_t              * sb_mnt;           /* Mountpoint dentry. */
+  } ro;
 };
-/* Mount a filesystem. */
-int vfs_mountpoint_mount(vfs_sb_t *sb, vfs_dentry_t *dentry);
-/* Unmount a filesystem. */
-int vfs_mountpoint_unmount(vfs_mountpoint_t *mp);
-/* Lookup a mountpoint. */
-vfs_mountpoint_t * vfs_mountpoint_lookup(vfs_dentry_t *dentry);
 
 
-/** VNodes **/
-/* TODO: This structure is very incomplete. */
-struct vfs_vnode {
-  int                           v_no;         /* vnode number. */
-  int                           v_count;      /* How many open files use this
-                                               * vnode. */
-  mode_t                        v_mode;       /* Type and permissions. */
-  size_t                        v_size;       /* File size in bytes. */
-  dev_t                         v_dev;        /* Device ID (if device file). */
-  vfs_sb_t                    * v_sb;         /* Superblock containing this
-                                               * vnode. */
-  list_t                      * v_dentries;   /* Dentries poiting to this
-                                               * inode. */
-  vfs_file_operations_t       * v_fops;       /* File operations. */
-  vfs_vnode_operations_t      * v_iops;       /* Inode operations. */
-  void                        * private_data; /* Private data. */
+/*****************************************************************************/
+/* Dentries ******************************************************************/
+/*****************************************************************************/
+
+/* dentry structure. */
+struct vfs_dentry {
+  char                    * d_name;       /* Dentry name. */
+  int                       d_vno;        /* vnode number this entry refers to
+                                           * if not a mountpoint. */
+  struct vfs_dentry_ro {
+    vfs_dentry_t          * d_parent;     /* Parent dentry. */
+    vfs_sb_t              * d_sb;         /* Superblock this dentry belongs
+                                           * to. */
+    vfs_sb_t              * d_mnt_sb;     /* Filesystem mounted in this
+                                           * dentry if mountpoint. */
+    int                     d_count;      /* Usage count. */
+  } ro;
 };
-/* VNode operations. */
+
+
+/*****************************************************************************/
+/* vnodes ********************************************************************/
+/*****************************************************************************/
+
+/* v-node operations. These operations basically take place without the need
+ * of an instance to the vnode (aka open file or open dir). */
 struct vfs_vnode_operations {
-  /* Looks for a dentry with the given dentry name. */
-  vfs_dentry_t * (lookup *) (vfs_vnode_t *dir, vfs_dentry_t *dentry);
+  /* Looks for a dentry with the given dentry name. The vnode is valid, but the
+   * dentry will only have d_name set. If the dentry is found, the rest of the
+   * data should be filled in. */
+  int (* lookup) (vfs_vnode_t *dir, vfs_dentry_t *dentry);
 
-  /* Creates a regular file in dir. */
-  int (create *) (vfs_vnode_t *dir, vfs_dentry_t *dentry, mode_t mode);
+  /* Creates a regular file in dir, named after dentry->d_name and with mode
+   * mode. dentry->d_vno must be updated accordingly. */
+  int (* create) (vfs_vnode_t *dir, vfs_dentry_t *dentry, mode_t mode);
 
-  /* Creates a new directory. */
-  int (mkdir *) (vfs_vnode_t *dir, vfs_dentry_t *dentry, mode_t mode);
+  /* Create a new directory in dir named after dentry->d_name with mode mode.
+   * dentry->d_vno must be updated. */
+  int (* mkdir) (vfs_vnode_t *dir, vfs_dentry_t *dentry, mode_t mode);
 
-  /* Create a device file. */
-  int (mknod *) (vfs_vnode_t *dir, vfs_dentry_t *dentry, mode_t mode,
+  /* Creates a new device special file with dev id devid and mode mode in dir
+   * named after dentry->d_name. */
+  int (* mknod) (vfs_vnode_t *dir, vfs_dentry_t *dentry, mode_t mode,
                  dev_t devid);
 
   /* TODO: Many more functions. */
 };
-/* Adds a vnode to the vnodes list. vnodes are allocated by superblocks. */
-int vfs_vnode_add(vfs_vnode_t *node);
-/* Removes a vnode from the list. */
-int vfs_vnode_release(vfs_vnode_t *node);
-/* Looks up a vnode. */
-vfs_vnode_t * vfs_vnode_lookup(vfs_dentry_t *dentry);
 
-
-/** Dentries. **/
-struct vfs_dentry {
-  char                    * name;         /* Dentry name. */
-  int                       len;          /* Name length. */
-  vfs_dentry_t            * d_parent;     /* Parent dentry. */
-  vfs_sb_t                * d_sb;         /* Superblock this dentry belongs
-                                           * to. */
-  vfs_vnode_t             * d_vnode;      /* vnode this entry refers to
-                                           * (if not a mountpoint). */
-  vfs_mountpoint_t        * d_mp;         /* Filesystem mounted in this
-                                           * dentry (if mountpoint). */
-  int                       d_count;      /* Usage count. */
-};
-/* Allocates a dentry. */
-vfs_dentry_t * vfs_dentry_alloc();
-/* Destroys a dentry. */
-int vfs_dentry_destroy(vfs_dentry_t *dentry);
-/* Registers a dentry. */
-int vfs_dentry_add(vfs_dentry_t *dentry);
-/* Unregister a denty. */
-int vfs_dentry_release(vfs_dentry_t *dentry);
-/* Looks a dentry up. */
-// TODO: int vfs_dentry_lookup(?);
-
-/* NOTE: HERE. */
-
-/* Open file. */
-struct vfs_file {
-  int                     f_count;  /* How many descriptors reference this open
-                                     * file. */
-  int                     f_flags;  /* Flags used when opening the file. */
-  mode_t                  f_mode;   /* Mode (used when file is created?). */
-  loff_t                  f_pos;    /* Current offset in this file. */
-  vfs_file_operations_t * f_ops;    /* File operations. */
-  vfs_vnode_t           * f_vnode;  /* Pointer to the backing vnode. */
-  void                  * f_private_data; /* Pointer to private data associated
-                                           * open file if needed. */
-};
-
-/* File operations. Not all the functions must be defined. When set to NULL
- * the vfs will provide a default behavior. */
+/* File operations. */
 struct vfs_file_operations {
-  /* Creates a new _file_ from _node_. */
-  int (f_open *) (vfs_node_t *node, vfs_file_t *file);
-  /* Releases the file. Only called when reference count reaches 0. */
-  int (f_release *) (vfs_node_t *node, vfs_file_t *file);
+  /* Opens vnode and fills file. Called every time the vnode is opened. To me,
+   * this function, as well as release, should be part of vnode_operations
+   * instead, but it's true that it would make the file interface used for
+   * device drivers require implementing both inode_operations and
+   * files_operations, which is kind of weird.  */
+  int (* open) (vfs_vnode_t *node, vfs_file_t *file);
+
+  /* Releases the vnode. Called when the all opened files referencing this
+   * vnode are closed. The file passed is the last of them. */
+  int (* release) (vfs_vnode_t *node, vfs_file_t *file);
+
   /* Called each time a file is closed. */
-  int (f_flush *) (vfs_file_t *file);
+  int (* flush) (vfs_file_t *file);
+
   /* Read _count_ bytes from _file_ starting at _off_ into _buf_. */
-  ssize_t (f_read *) (vfs_file_t *file, char *buf, size_t count, loff_t off);
+  ssize_t (* read) (vfs_file_t *file, char *buf, size_t count, off_t off);
+
   /* Write _count_ bytes into _file_ starting at _off_ from _buf_. */
-  ssize_t (f_write *) (fvs_file_t *file, char *buf, size_t count, loff_t off);
+  ssize_t (* write) (vfs_file_t *file, char *buf, size_t count, off_t off);
+
   /* Update _file_.f_pos to _off_ relative to _origin_. */
-  loff_t (f_lseek *) (vfs_file_t *file, loff_t off, int origin);
-  /* Performs ioctl _cmd_ with _arg_ on _vnode_ via _file_. */
-  int (f_ioctl *) (vfs_node_t *vnode, vfs_file_t *file, int cmd, void *arg);
+  off_t (* lseek) (vfs_file_t *file, off_t off, int origin);
+
+  /* Performs ioctl _cmd_ with _arg_ on _file_. */
+  int (* ioctl) (vfs_file_t *file, int cmd, void *arg);
+
+  /* Reads the next name in a directory. This is quite different from Linux
+   * interface. */
+  char * (* readdir) (vfs_file_t *file);
 };
 
+/* vnode structure. */
+struct vfs_vnode {
+  /* TODO: This structure is very incomplete. */
+  int                           v_no;         /* vnode number. */
+  mode_t                        v_mode;       /* Type and permissions. */
+  size_t                        v_size;       /* File size in bytes. */
+  dev_t                         v_dev;        /* Device ID (if device file). */
+  vfs_vnode_operations_t        v_iops;       /* Inode operations. */
+  vfs_file_operations_t         v_fops;       /* File operations. */
+  void                        * private_data; /* Private data. */
+  struct vfs_node_ro {
+    vfs_sb_t                  * v_sb;         /* The superblock containing
+                                               * this vnode. */
+    int                         v_count;      /* How many open files use this
+                                               * vnode. */
+  } ro;
+};
 
+/*****************************************************************************/
+/* Open files ****************************************************************/
+/*****************************************************************************/
 
+/* open file structure. */
+struct vfs_file {
+  off_t                   f_pos;          /* Current offset in this file. */
+  vfs_file_operations_t   f_ops;          /* File operations. */
+  void                  * private_data;   /* Pointer to private data associated
+                                           * open file if needed. */
+  int                     f_flags;        /* Flags used when the file was
+                                           * opened. */
+  struct vfs_file_ro {
+    int                   f_count;        /* How many descriptors reference
+                                           * this open file. */
+    vfs_vnode_t         * f_vnode;        /* Pointer to the backing vnode. */
+  } ro;
+};
 
+/*****************************************************************************/
+/* Others ********************************************************************/
+/*****************************************************************************/
 
-/* Kernel use only. */
+/** Kernel use only. **/
+/* Init routine. */
 int vfs_init();
 
-/* Filesystem API. */
-
-/* Allocates a new filesystem structure. It does not register it. */
-vfs_fs_t * vfs_fs_alloc(char *name);
-/* Releases a filesystem structure if it's not in use. */
-int vfs_fs_release(vfs_fs_t *);
-
-
-int vfs_fs_lookup(vfs_fs_t *, vfs_dentry_t *);
-
-int vfs_mount(vfs_fs_t *fs);
-int vfs_unmount(vfs_fs_t *fs);
-
-/* VFS API. */
-int vfs_open(vfs_vnode_t * vnode, vfs_file_t *file);
-int vfs_read(vfs_file_t *file, char *buf, size_t count);
-int vfs_write(vfs_file_t *file, char *buf, size_t count);
-int vfs_lseek(vfs_file_t *file, loff_t off, int origin);
-int vfs_close(vfs_file_t *file);
-
+/*****************************************************************************/
+/* API ***********************************************************************/
+/*****************************************************************************/
+int vfs_mount(dev_t devid, char *path, char *fs_type);
 
 #endif
