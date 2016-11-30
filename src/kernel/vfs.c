@@ -60,9 +60,6 @@
 #define VFS_SET_FILE_TYPE(m, t)   (((m) & 0x0fff) | ((t) & 0xf000))
 
 
-/* Open files. */
-static list_t vfs_files;
-
 /* Head of the whole VFS tree. */
 static vfs_dentry_t * vfs_root_dentry;
 
@@ -558,6 +555,103 @@ static int vfs_vnode_unmount_sb(vfs_sb_t *sb) {
 }
 
 /*****************************************************************************/
+/* Files *********************************************************************/
+/*****************************************************************************/
+
+/* Open files. */
+static list_t vfs_files;
+
+/* Unlike the rest of the structures, files are not meant to be globally
+ * identified. Processes will have their own file descriptors table holding
+ * pointers to the open file structures. Thus, the list we used for the other
+ * objects is not suitable here but we'll use anyway for the sake of speed.
+ * However, think of making this list double linked and holding the pointers
+ * in the structure itself just as Linux kernel does. Now I see why they do
+ * that. */
+static int vfs_file_cmp(void *item, void *filp) {
+  return item == filp;
+}
+
+/* Files are supposed to exist only to access nodes, thus we will require a
+ * node to set some default values. This function doesn't acquires the node
+ * though it seems it should, but since acquiring the node was probably done
+ * when loading the node, let's avoid double acquiring it.  */
+static vfs_file_t * vfs_file_open(vfs_vnode_t *node, int flags) {
+  vfs_file_t *filp;
+  int err;
+
+  filp = (vfs_file_t *)kalloc(sizeof(vfs_file_t));
+  if (filp == NULL) {
+    set_errno(E_NOMEM);
+    return NULL;
+  }
+  if (list_add(&vfs_files, filp) == -1) {
+    kfree(filp);
+    set_errno(E_NOMEM);
+    return NULL;
+  }
+
+  /* Set the initial values. */
+  filp->f_pos = 0;
+  filp->f_flags = flags;
+
+  filp->f_ops.open = node->v_fops.open;
+  filp->f_ops.release = node->v_fops.release;
+  filp->f_ops.flush = node->v_fops.flush;
+  filp->f_ops.read = node->v_fops.read;
+  filp->f_ops.write = node->v_fops.write;
+  filp->f_ops.lseek = node->v_fops.lseek;
+  filp->f_ops.ioctl = node->v_fops.ioctl;
+  filp->f_ops.readdir = node->v_fops.readdir;
+
+  filp->private_data = NULL;
+
+  filp->ro.f_count = 1;
+  filp->ro.f_vnode = node;
+
+  /* Try to open the file if open is set. */
+  if (filp->f_ops.open != NULL &&
+      filp->f_ops.open(filp->ro.f_vnode, filp) == -1) {
+    /* Remove it from list. */
+    err = get_errno();
+    list_find_del(&vfs_files, vfs_file_cmp, filp);
+    kfree(filp);
+    set_errno(err);
+    return NULL;
+  }
+
+  return filp;
+}
+
+/* Something remove files. */
+static int vfs_file_close(vfs_file_t *filp) {
+  vfs_file_t *f;
+  vfs_vnode_t *n;
+
+  /* Take it out the list. */
+  if (list_find_del(&vfs_files, vfs_file_cmp, filp) == NULL) {
+    set_errno(E_NOKOBJ);
+    return -1;
+  }
+
+  n = filp->ro.f_vnode;
+
+  /* Close the file. */
+  if (filp->f_ops.flush != NULL)
+    filp->f_ops.flush(filp);
+
+  /* If this the last opened file on this vnode. */
+  if (n->ro.v_count == 1 && filp->f_ops.release != NULL)
+    filp->f_ops.release(n, filp);
+
+  kfree(filp);
+
+  vfs_vnode_release(n);
+
+  return 0;
+}
+
+/*****************************************************************************/
 /* Helpers *******************************************************************/
 /*****************************************************************************/
 
@@ -738,7 +832,7 @@ static vfs_dentry_t * vfs_lookup(char *path) {
      * it's a new one or not. If a dentry was found then it has a node number,
      * whether it be a normal dentry or a mountpoint because mountpoints must
      * exist as directories in their own superblocks. So, if it's a new one
-     * it ino will be 0. */
+     * its ino will be 0. */
     if (obj->d_vno == 0) {
       /* Load the node associated with the parent dentry. This depends on the
        * dentry type. */
@@ -977,6 +1071,72 @@ int vfs_mknod(char *path, mode_t mode, dev_t dev) {
   return vfs_create_node(path, mode, dev);
 }
 
+/* Opens a file. */
+vfs_file_t * vfs_open(char *path, int flags, mode_t mode) {
+  vfs_vnode_t *node;
+  vfs_dentry_t *dentry;
+  vfs_file_t *filp;
+  int err;
+
+  /* Start by looking the file. */
+  dentry = vfs_lookup(path);
+  /* If the file was found but opened with forced creation */
+  if (dentry != NULL && flags & FILE_O_CREATE && flags & FILE_O_EXCL) {
+    set_errno(E_EXIST);
+    return NULL;
+  }
+  /* If the file was not found but creation is permitted */
+  if (dentry == NULL && flags & FILE_O_CREATE) {
+    /* Attempt to create the file. */
+    if (vfs_create_node(path,
+                        VFS_SET_FILE_TYPE(mode, FILE_TYPE_REGULAR),
+                        FILE_NODEV) == -1) {
+      /* errno was set. */
+      return NULL;
+    }
+    /* And try to pick dentry again. */
+    dentry = vfs_lookup(path);
+  }
+
+  /* Ok, do we got a file? */
+  if (dentry == NULL) {
+    /* errno was set by either vfs_lookup above. */
+    return NULL;
+  }
+
+  /* Get the node. */
+  node = vfs_node_from_dentry(dentry);
+  if (node == NULL) {
+    set_errno(E_CORRUPT);
+    return NULL;
+  }
+
+  /* TODO: Now we'll assume there's only root and he owns everything. Thus,
+   *       we'll check only user permissions. */
+  if ((flags & FILE_O_READ) && !(node->v_mode & FILE_PERM_USR_READ)) {
+    vfs_vnode_release(node);
+    set_errno(E_ACCESS);
+    return NULL;
+  }
+  if ((flags & FILE_O_WRITE) && !(node->v_mode & FILE_PERM_USR_WRITE)) {
+    vfs_vnode_release(node);
+    set_errno(E_ACCESS);
+    return NULL;
+  }
+
+  /* Implement O_TRUNC */
+
+  /* Open the file. */
+  filp = vfs_file_open(node, flags);
+  if (filp == NULL) {
+    err = get_errno();
+    vfs_vnode_release(node);
+    set_errno(err);
+    return NULL;
+  }
+
+  return filp;
+}
 
 /* Unmounts a mounted superblock. */
 int vfs_sb_unmount(vfs_sb_t *sb) {

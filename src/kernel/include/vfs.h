@@ -57,13 +57,6 @@
 /* Use this if you want to set v_dev on a non-device file. */
 #define FILE_NODEV                  0
 
-/* File open status. Once a file is opened and in use, these flags control
- * which operations can be performed on them. */
-#define FILE_FMODE_READ             0x0001  /* File is readable. */
-#define FILE_FMODE_WRITE            0x0002  /* File is writtable. */
-#define FILE_FMODE_LSEEK            0x0004  /* File is seekable. */
-
-
 /******************************/
 /*  Main internal structures  */
 /******************************/
@@ -244,7 +237,7 @@ struct vfs_file_operations {
    * this function, as well as release, should be part of vnode_operations
    * instead, but it's true that it would make the file interface used for
    * device drivers require implementing both inode_operations and
-   * files_operations, which is kind of weird.  */
+   * files_operations, which is kind of weird. */
   int (* open) (vfs_vnode_t *node, vfs_file_t *file);
 
   /* Releases the vnode. Called when the all opened files referencing this
@@ -323,5 +316,6 @@ int vfs_mount(dev_t devid, char *path, char *fs_type);
 int vfs_stat(char *path, struct stat *stat);
 int vfs_mkdir(char *path, mode_t mode);
 int vfs_mknod(char *path, mode_t mode, dev_t dev);
+vfs_file_t * vfs_open(char *path, int flags, mode_t mode);
 
 #endif

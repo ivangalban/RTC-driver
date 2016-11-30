@@ -67,6 +67,14 @@ typedef u16 mode_t;   /* File mode. */
 #define FILE_PERM_OTHERS_WRITE    0x0002
 #define FILE_PERM_OTHERS_EXEC     0x0001
 
+/* Open flags. */
+#define FILE_O_READ               0x00000001
+#define FILE_O_WRITE              0x00000002
+#define FILE_O_RW                 ( FILE_O_READ | FILE_O_WRITE )
+#define FILE_O_CREATE             0x00000004
+#define FILE_O_EXCL               0x00000008
+#define FILE_O_TRUNC              0x00000010
+
 typedef u32                       off_t;   /* offsets. */
 typedef u32                       size_t;  /* sizes. */
 typedef s32                       ssize_t; /* Signed version of size_t. */

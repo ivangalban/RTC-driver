@@ -56,6 +56,7 @@ void kmain2() {
   char *msg = "You pressed ESC.\n";
   int i;
   struct stat st;
+  vfs_file_t *f;
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -76,9 +77,8 @@ void kmain2() {
   /* Initializes the dev subsystem. */
   dev_init();
 
-  vfs_stat("/dev", &st);
-  fb_printf("/dev: { st.ino = %dd, st.size = %dd, st.mode = %wo, st.dev = %wx }\n",
-            st.ino, st.size, st.mode, st.dev);
+  set_panic_level(PANIC_PERROR);
+  f = vfs_open("/maria.txt", FILE_O_WRITE | FILE_O_CREATE, 0644);
 
   /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
