@@ -623,9 +623,8 @@ static vfs_file_t * vfs_file_open(vfs_vnode_t *node, int flags) {
   return filp;
 }
 
-/* Something remove files. */
+/* Remove and open file. */
 static int vfs_file_close(vfs_file_t *filp) {
-  vfs_file_t *f;
   vfs_vnode_t *n;
 
   /* Take it out the list. */
@@ -1111,6 +1110,18 @@ vfs_file_t * vfs_open(char *path, int flags, mode_t mode) {
     return NULL;
   }
 
+  /* Check what actions we can do. */
+  if ((flags & FILE_O_READ) && (node->v_fops.read == NULL)) {
+    vfs_vnode_release(node);
+    set_errno(E_ACCESS);
+    return NULL;
+  }
+  if ((flags & FILE_O_WRITE) && (node->v_fops.write == NULL)) {
+    vfs_vnode_release(node);
+    set_errno(E_ACCESS);
+    return NULL;
+  }
+
   /* TODO: Now we'll assume there's only root and he owns everything. Thus,
    *       we'll check only user permissions. */
   if ((flags & FILE_O_READ) && !(node->v_mode & FILE_PERM_USR_READ)) {
@@ -1136,6 +1147,48 @@ vfs_file_t * vfs_open(char *path, int flags, mode_t mode) {
   }
 
   return filp;
+}
+
+/* Write. */
+ssize_t vfs_write(vfs_file_t *filp, void *buf, size_t count) {
+  if ((filp->f_flags & FILE_O_WRITE) == 0) {
+    set_errno(E_BADFD);
+    return -1;
+  }
+  return filp->f_ops.write(filp, (char *)buf, count);
+}
+
+/* Read. */
+ssize_t vfs_read(vfs_file_t *filp, void *buf, size_t count) {
+  if ((filp->f_flags & FILE_O_READ) == 0) {
+    set_errno(E_BADFD);
+    return -1;
+  }
+  return filp->f_ops.read(filp, (char *)buf, count);
+}
+
+/* lseek */
+off_t vfs_lseek(vfs_file_t *filp, off_t off, int whence) {
+  if (whence != SEEK_SET && whence != SEEK_END && whence != SEEK_CUR) {
+    set_errno(E_INVAL);
+    return -1;
+  }
+
+  if (filp->f_ops.lseek != NULL) {
+    return filp->f_ops.lseek(filp, off, whence);
+  }
+  switch (whence) {
+    case SEEK_SET:
+      filp->f_pos = off;
+      break;
+    case SEEK_CUR:
+      filp->f_pos += off;
+      break;
+    case SEEK_END:
+      filp->f_pos = filp->ro.f_vnode->v_size + off;
+      break;
+  }
+  return filp->f_pos;
 }
 
 /* Unmounts a mounted superblock. */

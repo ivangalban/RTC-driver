@@ -75,6 +75,11 @@ typedef u16 mode_t;   /* File mode. */
 #define FILE_O_EXCL               0x00000008
 #define FILE_O_TRUNC              0x00000010
 
+/* Seek flags. */
+#define SEEK_SET                  0x00000000
+#define SEEK_CUR                  0x00000001
+#define SEEK_END                  0x00000002
+
 typedef u32                       off_t;   /* offsets. */
 typedef u32                       size_t;  /* sizes. */
 typedef s32                       ssize_t; /* Signed version of size_t. */

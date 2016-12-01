@@ -211,10 +211,12 @@ int memfs_file_flush(vfs_file_t *file) {
 }
 
 /* Read _count_ bytes from _file_ starting at _off_ into _buf_. */
-ssize_t memfs_file_read(vfs_file_t *file, char *buf, size_t count, off_t off) {
+ssize_t memfs_file_read(vfs_file_t *file, char *buf, size_t count) {
   memfs_node_t *mn;
+  off_t off;
 
   mn = (memfs_node_t *)(file->ro.f_vnode->private_data);
+  off = file->f_pos;
 
   /* EOF */
   if (off >= mn->size)
@@ -226,6 +228,7 @@ ssize_t memfs_file_read(vfs_file_t *file, char *buf, size_t count, off_t off) {
   }
 
   memcpy(buf, (char *)(mn->data) + off, count);
+  file->f_pos += count;
 
   return (ssize_t)count;
 }
@@ -233,12 +236,13 @@ ssize_t memfs_file_read(vfs_file_t *file, char *buf, size_t count, off_t off) {
 /* Write _count_ bytes into _file_ starting at _off_ from _buf_. */
 ssize_t memfs_file_write(vfs_file_t *file,
                          char *buf,
-                         size_t count,
-                         off_t off) {
+                         size_t count) {
   memfs_node_t *mn;
   char *new_data;
+  off_t off;
 
   mn = (memfs_node_t *)(file->ro.f_vnode->private_data);
+  off = file->f_pos;
 
   if (off + count > mn->size) {
     new_data = (char *)kalloc((off + count) * sizeof(char));
@@ -246,20 +250,19 @@ ssize_t memfs_file_write(vfs_file_t *file,
       set_errno(E_NOSPACE);
       return -1;
     }
+    /* This creates the effect of a hole. ;) */
+    memset(new_data, 0, (off + count) * sizeof(char));
+    /* Copy old data in. */
     memcpy(new_data, mn->data, mn->size);
     kfree(mn->data);
     mn->data = new_data;
+    mn->size = off + count;
   }
-  mn->size = off + count;
 
   memcpy(mn->data + off, buf, count);
+  file->f_pos += count;
 
   return (ssize_t)count;
-}
-
-/* Update _file_.f_pos to _off_ relative to _origin_. */
-off_t memfs_file_lseek(vfs_file_t *file, off_t off, int origin) {
-  return 0;
 }
 
 /* Reads the next name in a directory. This is quite different from Linux
@@ -396,7 +399,7 @@ static int memfs_sb_read_vnode(vfs_sb_t *sb, vfs_vnode_t *node) {
       node->v_fops.flush = memfs_file_flush;
       node->v_fops.read = memfs_file_read;
       node->v_fops.write = memfs_file_write;
-      node->v_fops.lseek = memfs_file_lseek;
+      /* We won't set lseek because the default implemetation works for us. */
       break;
     case FILE_TYPE_FIFO:
     case FILE_TYPE_CHAR_DEV:

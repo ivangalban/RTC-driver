@@ -248,13 +248,13 @@ struct vfs_file_operations {
   int (* flush) (vfs_file_t *file);
 
   /* Read _count_ bytes from _file_ starting at _off_ into _buf_. */
-  ssize_t (* read) (vfs_file_t *file, char *buf, size_t count, off_t off);
+  ssize_t (* read) (vfs_file_t *file, char *buf, size_t count);
 
   /* Write _count_ bytes into _file_ starting at _off_ from _buf_. */
-  ssize_t (* write) (vfs_file_t *file, char *buf, size_t count, off_t off);
+  ssize_t (* write) (vfs_file_t *file, char *buf, size_t count);
 
   /* Update _file_.f_pos to _off_ relative to _origin_. */
-  off_t (* lseek) (vfs_file_t *file, off_t off, int origin);
+  off_t (* lseek) (vfs_file_t *file, off_t off, int whence);
 
   /* Performs ioctl _cmd_ with _arg_ on _file_. */
   int (* ioctl) (vfs_file_t *file, int cmd, void *arg);
@@ -317,5 +317,8 @@ int vfs_stat(char *path, struct stat *stat);
 int vfs_mkdir(char *path, mode_t mode);
 int vfs_mknod(char *path, mode_t mode, dev_t dev);
 vfs_file_t * vfs_open(char *path, int flags, mode_t mode);
+ssize_t vfs_write(vfs_file_t *filp, void *buf, size_t count);
+ssize_t vfs_read(vfs_file_t *filp, void *buf, size_t count);
+off_t vfs_lseek(vfs_file_t *filp, off_t off, int whence);
 
 #endif

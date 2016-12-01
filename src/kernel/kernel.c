@@ -54,6 +54,7 @@ void kmain2() {
   char buf[2];
   dev_char_device_t *s;
   char *msg = "You pressed ESC.\n";
+  char *msg2;
   int i;
   struct stat st;
   vfs_file_t *f;
@@ -78,7 +79,13 @@ void kmain2() {
   dev_init();
 
   set_panic_level(PANIC_PERROR);
-  f = vfs_open("/maria.txt", FILE_O_WRITE | FILE_O_CREATE, 0644);
+  f = vfs_open("/text.txt", FILE_O_RW | FILE_O_CREATE, 0644);
+  vfs_write(f, msg, strlen(msg));
+  msg2 = (char *)kalloc(strlen(msg) + 10);
+  memset(msg2, '_', strlen(msg) + 10);
+  vfs_lseek(f, 0, SEEK_SET);
+  vfs_read(f, msg2 + 5, strlen(msg));
+  fb_write(msg2, strlen(msg) + 10);
 
   /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
