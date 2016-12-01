@@ -43,7 +43,6 @@
 #define __VFS_H__
 
 #include <typedef.h>
-#include <devices.h>
 #include <list.h>
 
 #define FILE_PERM_755               ( FILE_PERM_USR_READ    | \
@@ -237,7 +236,7 @@ struct vfs_file_operations {
    * this function, as well as release, should be part of vnode_operations
    * instead, but it's true that it would make the file interface used for
    * device drivers require implementing both inode_operations and
-   * files_operations, which is kind of weird. */
+   * file_operations, which is kind of weird. */
   int (* open) (vfs_vnode_t *node, vfs_file_t *file);
 
   /* Releases the vnode. Called when the all opened files referencing this

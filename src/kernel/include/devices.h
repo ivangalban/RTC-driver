@@ -36,6 +36,7 @@
 #define __DEVICES_H__
 
 #include <typedef.h>
+#include <vfs.h>
 
 /*****************************/
 /*   Device identification   */
@@ -156,15 +157,19 @@ int dev_remove_block_device(dev_t);
 /* Get block device */
 dev_block_device_t * dev_get_block_device(dev_t);
 
-/********************/
-/*   Char devices   */
-/********************/
+/*****************************************************************************/
+/*   Char devices (old, deprecated)                                          */
+/*****************************************************************************/
 
 /* Again, being a client DON'T ALTER THIS STRUCTURE. */
 struct dev_char_device {
-  dev_t devid;                          /* Dev ID (MAJOR and MINOR) */
+  dev_t                           devid;  /* Dev ID (MAJOR and MINOR) */
+  char                          * name;   /* Name used to register the file. */
+  vfs_file_operations_t           fops;   /* File operations. */
+  /* Deprecated fields. */
   int count;                            /* Reference count. */
   dev_char_device_operations_t *ops;    /* Operations. */
+
 };
 
 /* char device operations */
@@ -190,6 +195,22 @@ int dev_remove_char_device(dev_t);
 
 /* Get char device */
 dev_char_device_t * dev_get_char_device(dev_t);
+
+
+/*****************************************************************************/
+/* VFS based API *************************************************************/
+/*****************************************************************************/
+
+/* Registers a char device. */
+int dev_register_char_dev(dev_t devid,
+                          char *name,
+                          vfs_file_operations_t *ops);
+
+/* Unregisters a char device. */
+int dev_unregister_char_dev(dev_t devid);
+
+/* Assign default file operations to a device when opened. */
+int dev_set_char_operations(vfs_vnode_t *node, vfs_file_t *filp);
 
 /******************************/
 /*  Subsystem initialization  */

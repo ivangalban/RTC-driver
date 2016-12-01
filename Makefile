@@ -125,6 +125,10 @@ clean:
 	rm build/*
 	rm tests/images/*
 
+.PHONY: klean
+klean:
+	rm build/*
+
 ### Tools ###
 
 tools/btool: tools/src/btool.h \

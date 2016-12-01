@@ -54,6 +54,7 @@
 #include <fs/rootfs.h>
 #include <string.h>
 #include <errors.h>
+#include <devices.h>
 
 #define VFS_MAX_FILES             1024
 #define VFS_DEFAULT_BLK_SIZE      1024
@@ -595,14 +596,32 @@ static vfs_file_t * vfs_file_open(vfs_vnode_t *node, int flags) {
   filp->f_pos = 0;
   filp->f_flags = flags;
 
-  filp->f_ops.open = node->v_fops.open;
-  filp->f_ops.release = node->v_fops.release;
-  filp->f_ops.flush = node->v_fops.flush;
-  filp->f_ops.read = node->v_fops.read;
-  filp->f_ops.write = node->v_fops.write;
-  filp->f_ops.lseek = node->v_fops.lseek;
-  filp->f_ops.ioctl = node->v_fops.ioctl;
-  filp->f_ops.readdir = node->v_fops.readdir;
+  /* Default operations depend on the type of file being opened. */
+  switch (FILE_TYPE(node->v_mode)) {
+    case FILE_TYPE_REGULAR:
+    case FILE_TYPE_DIRECTORY:
+      filp->f_ops.open = node->v_fops.open;
+      filp->f_ops.release = node->v_fops.release;
+      filp->f_ops.flush = node->v_fops.flush;
+      filp->f_ops.read = node->v_fops.read;
+      filp->f_ops.write = node->v_fops.write;
+      filp->f_ops.lseek = node->v_fops.lseek;
+      filp->f_ops.ioctl = node->v_fops.ioctl;
+      filp->f_ops.readdir = node->v_fops.readdir;
+      break;
+    case FILE_TYPE_CHAR_DEV:
+      if (dev_set_char_operations(node, filp) == -1) {
+        list_find_del(&vfs_files, vfs_file_cmp, filp);
+        kfree(filp);
+        /* errno was set. */
+        return NULL;
+      }
+      break;
+    default:
+      kfree(filp);
+      set_errno(E_NOTIMP);
+      return NULL;
+  }
 
   filp->private_data = NULL;
 
@@ -1107,18 +1126,6 @@ vfs_file_t * vfs_open(char *path, int flags, mode_t mode) {
   node = vfs_node_from_dentry(dentry);
   if (node == NULL) {
     set_errno(E_CORRUPT);
-    return NULL;
-  }
-
-  /* Check what actions we can do. */
-  if ((flags & FILE_O_READ) && (node->v_fops.read == NULL)) {
-    vfs_vnode_release(node);
-    set_errno(E_ACCESS);
-    return NULL;
-  }
-  if ((flags & FILE_O_WRITE) && (node->v_fops.write == NULL)) {
-    vfs_vnode_release(node);
-    set_errno(E_ACCESS);
     return NULL;
   }
 

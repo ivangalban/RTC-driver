@@ -54,10 +54,9 @@ void kmain2() {
   char buf[2];
   dev_char_device_t *s;
   char *msg = "You pressed ESC.\n";
-  char *msg2;
   int i;
-  struct stat st;
   vfs_file_t *f;
+  char buf2[10];
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -79,16 +78,15 @@ void kmain2() {
   dev_init();
 
   set_panic_level(PANIC_PERROR);
-  f = vfs_open("/text.txt", FILE_O_RW | FILE_O_CREATE, 0644);
-  vfs_write(f, msg, strlen(msg));
-  msg2 = (char *)kalloc(strlen(msg) + 10);
-  memset(msg2, '_', strlen(msg) + 10);
-  vfs_lseek(f, 0, SEEK_SET);
-  vfs_read(f, msg2 + 5, strlen(msg));
-  fb_write(msg2, strlen(msg) + 10);
 
   /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
+
+  memset(buf2, '-', 10);
+  f = vfs_open("/dev/zero", FILE_O_READ, 0);
+  if (f == NULL) kernel_panic("no /dev/zero\n");
+  if (vfs_read(f, buf2 + 3, 5) != 5) kernel_panic("read failed.\n");
+  fb_write(buf2, 10);
 
   /* Initializes the PICs. This mask all interrupts. */
   pic_init();

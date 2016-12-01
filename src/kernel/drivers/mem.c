@@ -502,20 +502,45 @@ static dev_char_device_operations_t mem_operations = {
   .ioctl = mem_ioctl
 };
 
-static dev_char_device_t mem_zero = {
-  .devid = DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_NULL_MINOR),
-  .count = 0,
-  .ops = &mem_operations
-};
-
 static dev_char_device_t mem_null = {
   .devid = DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_ZERO_MINOR),
   .count = 0,
   .ops = &mem_operations
 };
 
+/*****************************************************************************/
+/* New VFS-based API *********************************************************/
+/*****************************************************************************/
+
+static int mem_zero_open(vfs_vnode_t *node, vfs_file_t *filp) {
+  /* This checks should be improved. */
+  if (filp->f_flags == FILE_O_READ)
+    return 0;
+  return -1;
+}
+
+static ssize_t mem_zero_read(vfs_file_t *filp, char *buf, size_t count) {
+  memset(buf, '*', count); /* Jus to check this works. */
+  filp->f_pos += count;
+  return (ssize_t)count;
+}
+
+static vfs_file_operations_t mem_zero_ops = {
+  .open = mem_zero_open,
+  .release = NULL,
+  .flush = NULL,
+  .read = mem_zero_read,
+  .write = NULL,
+  .lseek = NULL,
+  .ioctl = NULL,
+  .readdir = NULL
+};
+
+
 int mem_init() {
-  dev_register_char_device(&mem_zero);
+  dev_register_char_dev(DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_ZERO_MINOR),
+                        "zero",
+                        &mem_zero_ops);
   dev_register_char_device(&mem_null);
   return 0;
 }
