@@ -7,15 +7,21 @@
  * It's is important to remeber this list implementation doesn't release
  * any value pointer when an item is removed. It's up to the user to do it. */
 
-typedef int list_key_t;
-
 typedef struct __list_node {
-  list_key_t key;
   struct __list_node *next;
   void *val;
 } list_node_t;
 
-typedef list_key_t (*list_key_func_t)(void *);
+/* This is a generic function type used to compare two arbitrary items. When
+ * using list_find you'll need to provide it. The first argument will always
+ * be an item in the list, the second will be the third parameter passed to
+ * list_find. Exempli gratia:
+ *  int foo_cmp(void *item, void *str) {
+ *    return !strcmp((foo_item *)item->name, (char *)str);
+ *  }
+ * We expect 0 to mean the item is NOT the one looked for.
+ */
+typedef int (*list_cmp_t) (void *, void *);
 
 typedef struct __list {
   list_node_t *head;
@@ -23,10 +29,11 @@ typedef struct __list {
 } list_t;
 
 void list_init(list_t *);
-int list_add(list_t *, void *, list_key_t);
+int list_add(list_t *, void *);
 void * list_get(list_t *, int);
-int list_del(list_t *, int);
-void * list_find(list_t *, list_key_t);
-int list_find_pos(list_t *, list_key_t);
+void * list_del(list_t *, int);
+void * list_find(list_t *, list_cmp_t, void *);
+void * list_find_del(list_t *, list_cmp_t, void *);
+int list_find_pos(list_t *, list_cmp_t, void *);
 
 #endif

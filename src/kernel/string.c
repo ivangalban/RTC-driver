@@ -104,18 +104,21 @@ char * strtok(char *str, char delim) {
   if (str != NULL)
     ptr = str;
 
-  /* Find leading delims. */
+  /* Skip leading delims. */
   while (*ptr == delim) {
     if (*ptr == 0)
       break;
     ptr += 1;
   }
 
+  /* If there's nothing left, we're done. */
   if (*ptr == 0)
     return NULL;
+
+  /* Otherwise, ptr holds the first not delimiter char. */
   p = ptr;
 
-  /* Find the next delimiter and clear it. */
+  /* Find the next delimiter. */
   while (*ptr != delim) {
     if (*ptr == 0) {
       /* We got the end of the string so we're good to go. */
@@ -124,11 +127,14 @@ char * strtok(char *str, char delim) {
     ptr += 1;
   }
 
+  /* If not at the end of the string let's clear this delim to cut the string
+   * here and set ptr to the possible start of the next chunk. */
   if (*ptr != 0) {
     *ptr = 0;
     ptr += 1;
   }
 
+  /* p holds the section we want. */
   return p;
 }
 
@@ -236,4 +242,23 @@ int sprintf(char *dst, char *fmt, ...) {
     }
   }
   return count;
+}
+
+char * strchr(char *s, char c) {
+  for (; *s != 0 && *s != c; s ++);
+
+  if (*s == 0) return NULL;
+  return s;
+}
+
+char * strrchr(char *s, char c) {
+  char *p;
+
+  for (p = NULL; *s != 0; s ++) {
+    if (*s == c) {
+      p = s;
+    }
+  }
+
+  return p;
 }

@@ -8,7 +8,7 @@ void list_init(list_t * l) {
   l->count = 0;
 }
 
-int list_add(list_t *l, void *val, list_key_t key) {
+int list_add(list_t *l, void *val) {
   list_node_t *n, *p;
 
   n = (list_node_t*)kalloc(sizeof(list_node_t));
@@ -18,7 +18,6 @@ int list_add(list_t *l, void *val, list_key_t key) {
   }
 
   n->val = val;
-  n->key = key;
   n->next = NULL;
 
   if (l->head == NULL) {
@@ -46,22 +45,22 @@ void * list_get(list_t *l, int pos) {
   return p->val;
 }
 
-void * list_find(list_t *l, list_key_t k) {
+void * list_find(list_t *l, list_cmp_t list_cmp, void *search) {
   list_node_t *p;
   for (p = l->head;
-       p != NULL && p->key != k;
+       p != NULL && !list_cmp(p->val, search);
        p = p->next);
   if (p == NULL)
     return NULL;
   return p->val;
 }
 
-int list_find_pos(list_t *l, list_key_t k) {
+int list_find_pos(list_t *l, list_cmp_t list_cmp, void *search) {
   list_node_t *p;
   int i;
 
   for (p = l->head, i = 0;
-       p != NULL && p->key != k;
+       p != NULL && !list_cmp(p->val, search);
        p = p->next, i ++);
   if (p == NULL) {
     return -1;
@@ -69,29 +68,57 @@ int list_find_pos(list_t *l, list_key_t k) {
   return i;
 }
 
-int list_del(list_t *l, int pos) {
+void * list_del(list_t *l, int pos) {
   list_node_t *p, *prev;
-  int i;
+  void *val;
 
+  /* Small optimization. */
   if (pos >= l->count) {
-    errno = E_NOKOBJ;
-    return -1;
+    set_errno(E_NOKOBJ);
+    return NULL;
   }
 
-  if (pos == 0) {
-    p = l->head;
+  for (prev = NULL, p = l->head;
+       pos > 0;
+       prev = p, p = p->next, pos --);
+
+  val = p->val;
+
+  if (prev == NULL) {
     l->head = p->next;
-    l->count --;
-    kfree(p);
-    return 0;
   }
-
-  for (i = 1, prev = l->head, p = prev->next;
-       i < pos;
-       i ++, prev = p, p = p->next);
-
-  prev->next = p->next;
+  else {
+    prev->next = p->next;
+  }
   l->count --;
   kfree(p);
-  return 0;
+
+  return val;
+}
+
+void * list_find_del(list_t *l, list_cmp_t list_cmp, void *search) {
+  list_node_t *p, *prev;
+  void *val;
+
+  for (prev = NULL, p = l->head;
+       p != NULL && !list_cmp(p->val, search);
+       prev = p, p = p->next);
+  if (p == NULL) {
+    set_errno(E_NOKOBJ);
+    return NULL;
+  }
+
+  val = p->val;
+
+  /* p is head. */
+  if (prev == NULL) {
+    l->head = p->next;
+  }
+  else {
+    prev->next = p->next;
+  }
+  l->count --;
+  kfree(p);
+
+  return val;
 }

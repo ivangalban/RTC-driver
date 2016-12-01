@@ -381,7 +381,30 @@ static int serial_read(dev_char_device_t *dev, char *c) {
 }
 
 static int serial_write(dev_char_device_t *dev, char *c) {
-  /* TODO: (CLASE) Implementar la escritura. */
+  int i;
+  u8 r8;
+
+  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
+    if (dev->devid == devices[i].devid) {
+      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
+        set_errno(E_NODEV);
+        return -1;
+      }
+      if (dev->count == 0) {
+        set_errno(E_BADFD);
+        return -1;
+      }
+      while (1) {
+        r8 = inb(SERIAL_LINE_STATUS_PORT(devices[i].base));
+        if (r8 & SERIAL_LINE_STATUS_EMPTY_DATA_HOLDING_REG)
+          break;
+      };
+      serial_write_byte(devices + i, *c);
+      return 0;
+    }
+  }
+  set_errno(E_NODEV);
+  return -1;
 }
 
 static int serial_ioctl(dev_char_device_t *dev, u32 request, void *data) {
@@ -491,7 +514,18 @@ int serial_init() {
 
     serial_set_config(devices + i);
 
-    /* TODO: (CLASE) Registrar el dispositivo. */
+    devices[i].dev = (dev_char_device_t *)kalloc(sizeof(dev_char_device_t));
+    devices[i].dev->devid = devices[i].devid;
+    devices[i].dev->count = 0;
+    devices[i].dev->ops =
+      (dev_char_device_operations_t *)kalloc(sizeof(dev_char_device_operations_t));
+    devices[i].dev->ops->open = serial_open;
+    devices[i].dev->ops->release = serial_release;
+    devices[i].dev->ops->read = serial_read;
+    devices[i].dev->ops->write = serial_write;
+    devices[i].dev->ops->ioctl = serial_ioctl;
+
+    dev_register_char_device(devices[i].dev);
   }
 
   /* Set only the interrupt handlers that must be set. */

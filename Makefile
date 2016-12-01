@@ -35,7 +35,10 @@ build/kernel.elf: build/kernel.o \
 									build/serial.o \
 									build/errors.o \
 									build/list.o \
-									build/devices.o
+									build/devices.o \
+									build/vfs.o \
+									build/rootfs.o \
+									build/memfs.o
 	${LD} -m elf_i386 -T src/kernel/kernel.ld -nostdlib -static \
 				-o build/kernel.elf \
 				build/kernel_entry.o \
@@ -53,7 +56,10 @@ build/kernel.elf: build/kernel.o \
 				build/interrupts_asm.o \
 				build/pic.o \
 				build/list.o \
-				build/devices.o
+				build/devices.o \
+				build/vfs.o \
+				build/rootfs.o \
+				build/memfs.o
 
 build/kernel_entry.o: src/kernel/kernel_entry.asm
 	${AS} -f elf -o build/kernel_entry.o src/kernel/kernel_entry.asm
@@ -103,12 +109,25 @@ build/list.o: src/kernel/list.c src/kernel/include/list.h
 build/devices.o: src/kernel/devices.c src/kernel/include/devices.h
 	${CC} ${CC_FLAGS} -o build/devices.o src/kernel/devices.c
 
+build/vfs.o: src/kernel/vfs.c src/kernel/include/vfs.h
+	${CC} ${CC_FLAGS} -o build/vfs.o src/kernel/vfs.c
+
+build/rootfs.o: src/kernel/fs/rootfs.c src/kernel/include/fs/rootfs.h
+	${CC} ${CC_FLAGS} -o build/rootfs.o src/kernel/fs/rootfs.c
+
+build/memfs.o: src/kernel/fs/memfs.c src/kernel/include/fs/memfs.h
+	${CC} ${CC_FLAGS} -o build/memfs.o src/kernel/fs/memfs.c
+
 ### Clean ###
 
 .PHONY: clean
 clean:
 	rm build/*
 	rm tests/images/*
+
+.PHONY: klean
+klean:
+	rm build/*
 
 ### Tools ###
 

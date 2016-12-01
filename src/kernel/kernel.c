@@ -7,6 +7,8 @@
 #include <kb.h>
 #include <errors.h>
 #include <devices.h>
+#include <vfs.h>
+#include <fs/rootfs.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -53,6 +55,8 @@ void kmain2() {
   dev_char_device_t *s;
   char *msg = "You pressed ESC.\n";
   int i;
+  vfs_file_t *f;
+  char buf2[10];
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -61,11 +65,28 @@ void kmain2() {
   /* Set up the interrupt subsytem. */
   itr_set_up();
 
+  /* Initialize the Virtual File System. */
+  vfs_init();
+
+  /* Intializes the rootfs. */
+  rootfs_init();
+
+  /* Mount rootfs on "/" */
+  vfs_mount(ROOTFS_DEVID, "/", ROOTFS_NAME);
+
   /* Initializes the dev subsystem. */
   dev_init();
 
-  /* Complete memory initialization. */
+  set_panic_level(PANIC_PERROR);
+
+  /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
+
+  memset(buf2, '-', 10);
+  f = vfs_open("/dev/zero", FILE_O_READ, 0);
+  if (f == NULL) kernel_panic("no /dev/zero\n");
+  if (vfs_read(f, buf2 + 3, 5) != 5) kernel_panic("read failed.\n");
+  fb_write(buf2, 10);
 
   /* Initializes the PICs. This mask all interrupts. */
   pic_init();

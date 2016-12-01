@@ -9,9 +9,15 @@ int panic_level;
 void set_errno(int _errno) {
   errno = _errno;
   if (panic_level <= PANIC_HYSTERICAL) {
-    fb_printf("ERROR: Code %dd\n", errno);
+    fb_set_fg_color(FB_COLOR_WHITE);
+    fb_set_bg_color(FB_COLOR_RED);
+    fb_printf("ERROR: Code %dd   \n", errno);
     kernel_panic("HYSTERICAL PANIC!!!");
   }
+}
+
+int get_errno() {
+  return errno;
 }
 
 void perror(char * prompt) {
@@ -24,7 +30,7 @@ void perror(char * prompt) {
 void kernel_panic(char *msg) {
   fb_set_fg_color(FB_COLOR_WHITE);
   fb_set_bg_color(FB_COLOR_RED);
-  fb_clear();
+  // fb_clear();
   fb_write(msg, strlen(msg));
   hw_cli();
   hw_hlt();
@@ -33,4 +39,8 @@ void kernel_panic(char *msg) {
 
 void set_panic_level(int level) {
   panic_level = level;
+}
+
+int get_panic_level() {
+  return panic_level;
 }
