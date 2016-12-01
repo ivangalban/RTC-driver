@@ -512,24 +512,13 @@ static dev_char_device_t mem_null = {
 /* New VFS-based API *********************************************************/
 /*****************************************************************************/
 
-static int mem_zero_open(vfs_vnode_t *node, vfs_file_t *filp) {
-  /* This checks should be improved. */
-  if (filp->f_flags == FILE_O_READ)
-    return 0;
-  return -1;
-}
-
-static ssize_t mem_zero_read(vfs_file_t *filp, char *buf, size_t count) {
-  memset(buf, '*', count); /* Jus to check this works. */
-  filp->f_pos += count;
-  return (ssize_t)count;
-}
+/* CLASE: Implementar las operaciones que necesite /dev/zero. */
 
 static vfs_file_operations_t mem_zero_ops = {
-  .open = mem_zero_open,
+  .open = NULL,
   .release = NULL,
   .flush = NULL,
-  .read = mem_zero_read,
+  .read = NULL,
   .write = NULL,
   .lseek = NULL,
   .ioctl = NULL,
