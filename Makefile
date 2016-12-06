@@ -92,7 +92,8 @@ build/mem_asm.o: src/kernel/drivers/mem.asm src/kernel/include/mem.h
 build/pic.o: src/kernel/drivers/pic.c src/kernel/include/pic.h
 	${CC} ${CC_FLAGS} -o build/pic.o src/kernel/drivers/pic.c
 
-build/interrupts.o: src/kernel/interrupts.c src/kernel/include/interrupts.h
+build/interrupts.o: src/kernel/interrupts.c src/kernel/include/interrupts.h \
+																						src/kernel/include/lock.h
 	${CC} ${CC_FLAGS} -o build/interrupts.o src/kernel/interrupts.c
 
 build/interrupts_asm.o: src/kernel/interrupts.asm

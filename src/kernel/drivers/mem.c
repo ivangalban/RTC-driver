@@ -60,6 +60,7 @@
 #include <devices.h>
 #include <errors.h>
 #include <gdt.h>
+#include <lock.h>
 
 /*****************************************************************************
  * Physical allocator                                                        *
@@ -205,11 +206,14 @@ int mem_setup(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
 void * mem_allocate_frames(u32 count, u32 first, u32 last) {
   /* This is the simplest, dummiest way to do this. */
   u32 f, free_f;
+  void *r;
 
   if (last == 0 || last > mem_total_frames)
     last = mem_total_frames;
 
-  for (free_f = 0, f = first; f < last; f++) {
+  lock();
+
+  for (r = NULL, free_f = 0, f = first; f < last; f++) {
     if (mem_bitmap_get_entry(f) == MEM_BITMAP_ENTRY_FREE)
       free_f++;
     else
@@ -221,10 +225,14 @@ void * mem_allocate_frames(u32 count, u32 first, u32 last) {
         free_f--;
       }
       /* Now, we return the address to the first frame. */
-      return (void *)((f - count + 1) * MEM_FRAME_SIZE);
+      r = (void *)((f - count + 1) * MEM_FRAME_SIZE);
+      break;
     }
   }
-  return NULL;
+
+  unlock();
+
+  return r;
 }
 
 /* Marks count frames from first_frame on as free. Of course, if any of the
@@ -241,12 +249,16 @@ void mem_release_frames(void *addr, u32 count) {
   if (last > mem_total_frames)
     last = mem_total_frames;
 
+  lock();
+
   for (; f < last; f++) {
     if (mem_bitmap_get_entry(f) == MEM_BITMAP_ENTRY_USED) {
       // fb_printf("fr: %d\n", f);
       mem_bitmap_set_entry(f, MEM_BITMAP_ENTRY_FREE);
     }
   }
+
+  unlock();
 }
 
 void mem_inspect() {
