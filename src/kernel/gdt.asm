@@ -1,8 +1,8 @@
 ; We can't use C to load the GDT therefore we need this.
 [bits 32]
 
-global gdt_load
-gdt_load:
+global gdt_load_gdtr
+gdt_load_gdtr:
   ; This will be called from C. The address to the descriptor is the only
   ; argument this function receives.
   push eax

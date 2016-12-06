@@ -18,7 +18,7 @@ static gdt_tss_t gdt_tss;
 #define GDT_NULL_ENTRY            0x0000000000000000
 
 /* This will be provided by gdt.asm. */
-extern void gdt_load(void *);
+extern void gdt_load_gdtr(void *);
 extern void gdt_load_ltr(u16);
 
 /* Builds a GDT descriptor. */
@@ -96,8 +96,8 @@ void gdt_setup(u32 mem_total_frames) {
   gdt_table_descriptor.limit = GDT_MAX_ENTRIES * sizeof(gdt_descriptor_t) - 1;
   gdt_table_descriptor.base_address = gdt;
 
-  /* Load the GDT. */
-  gdt_load(&gdt_table_descriptor);
+  /* Load the GDTR. */
+  gdt_load_gdtr(&gdt_table_descriptor);
   /* Load the LTR. */
   gdt_load_ltr(GDT_SEGMENT_SELECTOR(GDT_TSS, GDT_RPL_KERNEL));
 }
