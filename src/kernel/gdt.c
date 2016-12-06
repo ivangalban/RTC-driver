@@ -5,9 +5,6 @@
 /* Our GDT table will be statically stored. */
 #define GDT_MAX_ENTRIES           32  /* This is more than enough for us. */
 
-/* These are all our entries. */
-static gdt_descriptor_t gdt[GDT_MAX_ENTRIES];
-static gdt_tss_t gdt_tss;
 
 #define GDT_KERNEL_CODE_OFF       ( GDT_KERNEL_CODE_SEGMENT / \
                                     sizeof(gdt_descriptor_t) )
@@ -20,6 +17,65 @@ static gdt_tss_t gdt_tss;
 /* This will be provided by gdt.asm. */
 extern void gdt_load_gdtr(void *);
 extern void gdt_load_ltr(u16);
+
+/* TSS. We won't use IA-32 tasks as they are supposed to, which is having a
+ * task per runnable entity. However, we must have at least one TSS for the
+ * only task we'll have. We need it because when interrupts or traps happens
+ * when running code in PL 3 the architecture will use the current task's
+ * state segment (TSS) to do the stack switch. There is no other way around
+ * this so we'll have to deal with it. So, for the architecture, there will
+ * be only ONE task and everything will run in its context. */
+typedef struct {
+  u16 prev_tss;
+  u16 reserved_0;
+  u32 esp0;
+  u16 ss0;
+  u16 reserved_1;
+  u32 esp1;
+  u16 ss1;
+  u16 reserved_2;
+  u32 esp2;
+  u16 ss2;
+  u16 reserved_3;
+  u32 cr3;
+  u32 eip;
+  u32 eflags;
+  u32 eax;
+  u32 ecx;
+  u32 edx;
+  u32 ebx;
+  u32 esp;
+  u32 ebp;
+  u32 esi;
+  u32 edi;
+  u16 es;
+  u16 reserved_4;
+  u16 cs;
+  u16 reserved_5;
+  u16 ss;
+  u16 reserved_6;
+  u16 ds;
+  u16 reserved_7;
+  u16 fs;
+  u16 reserved_8;
+  u16 gs;
+  u16 reserved_9;
+  u16 ldtr;
+  u16 reserved_a;
+  u16 trap; /* Though here only the least significant bit has meaning. */
+  u16 iomap;
+} __attribute__((__packed__)) gdt_tss_t;
+
+
+/*****************************************************************************
+ * Our vars                                                                  *
+ *****************************************************************************/
+static gdt_descriptor_t gdt[GDT_MAX_ENTRIES];
+static gdt_tss_t gdt_tss;
+
+/*****************************************************************************
+ * Our funcs                                                                 *
+ *****************************************************************************/
 
 /* Builds a GDT descriptor. */
 gdt_descriptor_t gdt_descriptor(u32 base, u32 limit, gdt_descriptor_t flags) {
@@ -80,10 +136,23 @@ void gdt_setup(u32 mem_total_frames) {
                                             GDT_DATA_READ_WRITE          |
                                             GDT_DATA_EXPAND_UP);
 
-  /* We won't need the TSS until we create a user space process. Once that
-   * happens we'll set the right values into it. However, let's register it
-   * and move it to the LTR. */
+  /* We will only have a single TSS and only a couple of fields should be used
+   * by the architecture in certain situations. Basically we need it to handle
+   * stack switches when interrupts happen in user mode. Probably I'm wrong
+   * but I think we have no need of keeping a separated kernel stack for each
+   * process if we carefully design the system calls and interrupts handlers
+   * in a way that a task switch never occur when a system call is being
+   * executed unless the system call itself explicitly calls for it, in which
+   * case it should have prepare everything so when the process is scheduled
+   * to run it needs the former stack no more. With that thought in mind, I'm
+   * setting a hardcoded kernel stack pointer here, which means everytime we
+   * come from userspace the stack will end up at the same location and thus
+   * will replace the previous contents it held. */
   memset(&gdt_tss, 0, sizeof(gdt_tss_t));
+  /* We're setting the read-only fields we need, only those. */
+  gdt_tss.ss0 = GDT_SEGMENT_SELECTOR(GDT_KERNEL_DATA_SEGMENT, GDT_RPL_KERNEL);
+  gdt_tss.esp0 = MEM_KERNEL_ISTACK_TOP;
+  gdt_tss.iomap = sizeof(gdt_tss_t);
   gdt[GDT_TSS_OFF] = gdt_descriptor((u32)(&gdt_tss),
                                     sizeof(gdt_tss_t),
                                     GDT_GRANULARITY_1B           |

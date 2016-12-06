@@ -45,9 +45,19 @@
 #define MEM_KERNEL_HEAP_ADDR      0x00100000  /* 1M */
 #define MEM_KERNEL_HEAP_SIZE      0x00200000  /* 2M */
 #define MEM_KERNEL_FIRST_FRAME    ((MEM_KERNEL_HEAP_ADDR) / (MEM_FRAME_SIZE))
-#define MEM_KERNEL_STACK_TOP      ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
+
+/* Set appart one frame to hold the kernel stack used when interrupts show
+ * up in user space, or when system calls occur. 4K is enough space for that
+ * and it will let us have our own kernel stack available in case we ever
+ * decide the kernel shouldn't be so passive. */
+#define MEM_KERNEL_ISTACK_TOP     ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
+#define MEM_KERNEL_ISTACK_FRAME   ((MEM_KERNEL_STACK_TOP) / (MEM_FRAME_SIZE) - 1)
+
+/* Now the kernel stack starts. */
+#define MEM_KERNEL_STACK_TOP      ((MEM_KERNEL_ISTACK_TOP) - (MEM_FRAME_SIZE))
 #define MEM_KERNEL_STACK_FRAME    ((MEM_KERNEL_STACK_TOP) / (MEM_FRAME_SIZE) - 1)
 
+/* Finally, the space destined to user processes. */
 #define MEM_USER_SPACE_ADDR       ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
 #define MEM_USER_FIRST_FRAME      ((MEM_USER_SPACE_ADDR) / (MEM_FRAME_SIZE))
 

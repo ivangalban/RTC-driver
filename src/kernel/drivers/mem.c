@@ -19,10 +19,10 @@
  *
  * The reserved area contains some data prepared during the earliest stage of
  * this kernel, in particular it contains the GDT in use when the memory
- * initialization routines start.
- *
- * TODO: Fill the remaining three GDT entries during initialization.
- * TODO: Should we provide a GDT-related API to the kernel?
+ * initialization routines start. However, the GDT will be moved to the
+ * KERNEL_TEXT section during mem_setup() via gdt_setup() in order to control
+ * all GDT-related stuff, of which the most important is to allocate segments
+ * for user space process.
  *
  * We must also set the kernel stack. However, we can't move the stack and
  * expect everything will work just fine, can we? Thus, this should be the
@@ -31,7 +31,7 @@
  * lack the ability to control what the stack size is, thus we can eventually
  * run into data corruption in kernel space :( if the heap and the stack
  * reach each other. I'm not sure about how to even detect it without virtual
- * memory.
+ * memory without having to deal with a heavily segmented memory.
  *
  * TODO: Think of a way to detect the clash between kernel's stack and heap.
  *
@@ -187,6 +187,10 @@ int mem_setup(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
       return -1;
     }
   }
+
+  /* Also, reserve the two stacks. */
+  mem_bitmap_set_entry(MEM_KERNEL_ISTACK_FRAME, MEM_BITMAP_ENTRY_RESERVED);
+  mem_bitmap_set_entry(MEM_KERNEL_STACK_FRAME, MEM_BITMAP_ENTRY_RESERVED);
 
   /* Finally, let's intialize the logical allocator. */
   kalloc_init();

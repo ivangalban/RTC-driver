@@ -81,50 +81,6 @@ typedef u64                               gdt_descriptor_t;
 #define GDT_SEGMENT_SELECTOR(S, RPL)      ((u16)((u16)(S) | (u16)(RPL)))
 
 /*****************************************************************************
- * TSS                                                                       *
- *****************************************************************************/
-typedef struct tss {
-  u16 prev_tss;
-  u16 reserved_0;
-  u32 esp0;
-  u16 ss0;
-  u16 reserved_1;
-  u32 esp1;
-  u16 ss1;
-  u16 reserved_2;
-  u32 esp2;
-  u16 ss2;
-  u16 reserved_3;
-  u32 cr3;
-  u32 eip;
-  u32 eflags;
-  u32 eax;
-  u32 ecx;
-  u32 edx;
-  u32 ebx;
-  u32 esp;
-  u32 ebp;
-  u32 esi;
-  u32 edi;
-  u16 es;
-  u16 reserved_4;
-  u16 cs;
-  u16 reserved_5;
-  u16 ss;
-  u16 reserved_6;
-  u16 ds;
-  u16 reserved_7;
-  u16 fs;
-  u16 reserved_8;
-  u16 gs;
-  u16 reserved_9;
-  u16 ldtr;
-  u16 reserved_a;
-  u16 trap; /* Though here only the least significant bit has meaning. */
-  u16 iomap;
-} __attribute__((__packed__)) gdt_tss_t;
-
-/*****************************************************************************
  * For mem.c only                                                            *
  *****************************************************************************/
 void gdt_setup(u32);
