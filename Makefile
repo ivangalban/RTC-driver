@@ -38,7 +38,9 @@ build/kernel.elf: build/kernel.o \
 									build/devices.o \
 									build/vfs.o \
 									build/rootfs.o \
-									build/memfs.o
+									build/memfs.o \
+									build/gdt.o \
+									build/gdt_asm.o
 	${LD} -m elf_i386 -T src/kernel/kernel.ld -nostdlib -static \
 				-o build/kernel.elf \
 				build/kernel_entry.o \
@@ -59,7 +61,9 @@ build/kernel.elf: build/kernel.o \
 				build/devices.o \
 				build/vfs.o \
 				build/rootfs.o \
-				build/memfs.o
+				build/memfs.o \
+				build/gdt.o \
+				build/gdt_asm.o
 
 build/kernel_entry.o: src/kernel/kernel_entry.asm
 	${AS} -f elf -o build/kernel_entry.o src/kernel/kernel_entry.asm
@@ -117,6 +121,12 @@ build/rootfs.o: src/kernel/fs/rootfs.c src/kernel/include/fs/rootfs.h
 
 build/memfs.o: src/kernel/fs/memfs.c src/kernel/include/fs/memfs.h
 	${CC} ${CC_FLAGS} -o build/memfs.o src/kernel/fs/memfs.c
+
+build/gdt.o: src/kernel/gdt.c src/kernel/include/gdt.h
+	${CC} ${CC_FLAGS} -o build/gdt.o src/kernel/gdt.c
+
+build/gdt_asm.o: src/kernel/gdt.asm
+	${AS} -f elf -o build/gdt_asm.o src/kernel/gdt.asm
 
 ### Clean ###
 

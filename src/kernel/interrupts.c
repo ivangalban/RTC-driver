@@ -5,6 +5,7 @@
 #include <pic.h>
 #include <fb.h>
 #include <errors.h>
+#include <gdt.h>
 
 #define IDT_ENTRIES               256
 

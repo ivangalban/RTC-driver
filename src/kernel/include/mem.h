@@ -39,23 +39,6 @@
 
 #include <typedef.h>
 
-/* All GDT related functionality are part of the memory subsystem.
- * We know the earliest stage of the kernel set the GDT with three entries
- * at offsets 0, 8 and 16 corresponding to NULL, kernel code and kernel data
- * segments. The other segments will be set up during later during mem_init.
- */
-#define GDT_NULL_SEGMENT                  0x00
-#define GDT_KERNEL_CODE_SEGMENT           0x08
-#define GDT_KERNEL_DATA_SEGMENT           0x10
-#define GDT_USER_CODE_SEGMENT             0x18
-#define GDT_USER_DATA_SEGMENT             0x20
-#define GDT_TSS                           0x28
-
-#define GDT_RPL_KERNEL                    0x00
-#define GDT_RPL_USER                      0x03
-
-#define GDT_SEGMENT_SELECTOR(S, RPL)      ((u16)((u16)(S) | (u16)(RPL)))
-
 /* Addresses and sizes of the most relevant memory sections in terms of the
  * kernel address space. */
 #define MEM_FRAME_SIZE            4096
