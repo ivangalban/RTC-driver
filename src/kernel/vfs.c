@@ -1240,3 +1240,8 @@ int vfs_sb_unmount(vfs_sb_t *sb) {
 
   return 0;
 }
+
+int vfs_close(vfs_file_t *filp) {
+  /* TODO: Implement this. */
+  return 0;
+}

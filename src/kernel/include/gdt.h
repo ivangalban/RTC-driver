@@ -11,6 +11,9 @@
  * Segment descriptors                                                       *
  *****************************************************************************/
 typedef u64                               gdt_descriptor_t;
+typedef u16                               gdt_selector_t;
+
+#define GDT_NULL_ENTRY                    0x0000000000000000
 
 /* General flags */
 #define GDT_GRANULARITY_4K                0x0080000000000000
@@ -84,5 +87,14 @@ typedef u64                               gdt_descriptor_t;
  * For mem.c only                                                            *
  *****************************************************************************/
 void gdt_setup(u32);
+
+/*****************************************************************************
+ * API                                                                       *
+ *****************************************************************************/
+u16 gdt_alloc(void * base, u32 limit, u64 flags);
+void gdt_dealloc(u16);
+gdt_descriptor_t gdt_get(u16);
+void * gdt_base(gdt_descriptor_t);
+u32 gdt_limit(gdt_descriptor_t);
 
 #endif

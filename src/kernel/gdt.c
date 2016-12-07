@@ -12,8 +12,6 @@
                                     sizeof(gdt_descriptor_t) )
 #define GDT_TSS_OFF               ( GDT_TSS / sizeof(gdt_descriptor_t) )
 
-#define GDT_NULL_ENTRY            0x0000000000000000
-
 /* This will be provided by gdt.asm. */
 extern void gdt_load_gdtr(void *);
 extern void gdt_load_ltr(u16);
@@ -78,7 +76,8 @@ static gdt_tss_t gdt_tss;
  *****************************************************************************/
 
 /* Builds a GDT descriptor. */
-gdt_descriptor_t gdt_descriptor(u32 base, u32 limit, gdt_descriptor_t flags) {
+static gdt_descriptor_t gdt_descriptor(void * base, u32 limit,
+                                       gdt_descriptor_t flags) {
   gdt_descriptor_t tmp;
 
   /* The limit is split in two parts. */
@@ -86,9 +85,9 @@ gdt_descriptor_t gdt_descriptor(u32 base, u32 limit, gdt_descriptor_t flags) {
   tmp &= 0x00000000ffffffff;
 
   flags |= tmp & 0x000000000000ffff;
-  flags |= ( tmp & 0x0000000000070000 ) << 32;
+  flags |= ( tmp & 0x00000000000f0000 ) << 32;
 
-  tmp = base;
+  tmp = (gdt_descriptor_t)base;
   tmp &= 0x00000000ffffffff;
 
   /* The base is split in three. */
@@ -97,6 +96,24 @@ gdt_descriptor_t gdt_descriptor(u32 base, u32 limit, gdt_descriptor_t flags) {
   flags |= ( tmp & 0x00000000ff000000 ) << 32;
 
   return flags;
+}
+
+void * gdt_base(gdt_descriptor_t d) {
+  u32 base;
+
+  base = (d >> 32) & 0xf0000000;
+  base |= (d >> 16) & 0x0fffffff;
+
+  return (void *)base;
+}
+
+u32 gdt_limit(gdt_descriptor_t d) {
+  u32 limit;
+
+  limit = (d >> 32) & 0x000f0000;
+  limit |= d & 0x0000ffff;
+
+  return limit;
 }
 
 /* Just initializes the GDT. Only called from mem_setup() in a very early stage
@@ -113,7 +130,7 @@ void gdt_setup(u32 mem_total_frames) {
   for (i = 0; i < GDT_MAX_ENTRIES; gdt[i ++] = GDT_NULL_ENTRY);
 
   /* Set kernel code segment. */
-  gdt[GDT_KERNEL_CODE_OFF] = gdt_descriptor(0x00000000,
+  gdt[GDT_KERNEL_CODE_OFF] = gdt_descriptor((void *)0x00000000,
                                             mem_total_frames,
                                             GDT_GRANULARITY_4K           |
                                             GDT_OP_SIZE_32               |
@@ -125,7 +142,7 @@ void gdt_setup(u32 mem_total_frames) {
                                             GDT_CODE_NON_CONFORMING);
 
   /* Set kernel data segment. */
-  gdt[GDT_KERNEL_DATA_OFF] = gdt_descriptor(0x00000000,
+  gdt[GDT_KERNEL_DATA_OFF] = gdt_descriptor((void *)0x00000000,
                                             mem_total_frames,
                                             GDT_GRANULARITY_4K           |
                                             GDT_OP_SIZE_32               |
@@ -153,7 +170,7 @@ void gdt_setup(u32 mem_total_frames) {
   gdt_tss.ss0 = GDT_SEGMENT_SELECTOR(GDT_KERNEL_DATA_SEGMENT, GDT_RPL_KERNEL);
   gdt_tss.esp0 = MEM_KERNEL_ISTACK_TOP;
   gdt_tss.iomap = sizeof(gdt_tss_t);
-  gdt[GDT_TSS_OFF] = gdt_descriptor((u32)(&gdt_tss),
+  gdt[GDT_TSS_OFF] = gdt_descriptor(&gdt_tss,
                                     sizeof(gdt_tss_t),
                                     GDT_GRANULARITY_1B           |
                                     GDT_PRESENT                  |
@@ -169,4 +186,30 @@ void gdt_setup(u32 mem_total_frames) {
   gdt_load_gdtr(&gdt_table_descriptor);
   /* Load the LTR. */
   gdt_load_ltr(GDT_SEGMENT_SELECTOR(GDT_TSS, GDT_RPL_KERNEL));
+}
+
+u16 gdt_alloc(void * base, u32 limit, u64 flags) {
+  int i;
+
+  for (i = 1; i < GDT_MAX_ENTRIES && gdt[i] != GDT_NULL_ENTRY; i ++);
+  if (i == GDT_MAX_ENTRIES)
+    return 0;
+
+  gdt[i] = gdt_descriptor(base, limit, flags);
+
+  return (u16)(i + sizeof(gdt_descriptor_t));
+}
+
+void gdt_dealloc(u16 idx) {
+  int i;
+
+  i = idx / sizeof(gdt_descriptor_t);
+  gdt[i] = GDT_NULL_ENTRY;
+}
+
+gdt_descriptor_t gdt_get(u16 idx) {
+  int i;
+
+  i = idx / sizeof(gdt_descriptor_t);
+  return gdt[i];
 }

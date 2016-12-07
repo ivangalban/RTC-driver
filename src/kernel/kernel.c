@@ -50,13 +50,10 @@ void kmain(void *gdt_base, void *mem_map) {
 }
 
 void kmain2() {
-  // serial_port_config_t sc;
   char buf[2];
   dev_char_device_t *s;
-  char *msg = "You pressed ESC.\n";
-  int i;
+  int i, c;
   vfs_file_t *f;
-  char buf2[10];
 
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
@@ -82,12 +79,6 @@ void kmain2() {
   /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
 
-  memset(buf2, '-', 10);
-  f = vfs_open("/dev/zero", FILE_O_READ, 0);
-  if (f == NULL) kernel_panic("no /dev/zero\n");
-  if (vfs_read(f, buf2 + 3, 5) != 5) kernel_panic("read failed.\n");
-  fb_write(buf2, 10);
-
   /* Initializes the PICs. This mask all interrupts. */
   pic_init();
 
@@ -101,28 +92,29 @@ void kmain2() {
 
   hw_sti();
 
+  /* Test userland. */
+
+  f = vfs_open("/init", FILE_O_WRITE | FILE_O_CREATE, 0755);
+  if (f == NULL) kernel_panic("no /init\n");
+
   s = dev_get_char_device(DEV_MAKE_DEV(DEV_TTY_MAJOR, 64));
-  if (s == NULL)
-    kernel_panic("No TTY:64\n");
+  if (s == NULL) kernel_panic("No TTY:64\n");
   s->ops->open(s, 0);
 
-  /* We can now turn interrupts on, they won't reach us (yet). */
+  i = 48, c = 0, buf[1] = 0;
+  while (i < 48 + 4) {
+    s->ops->read(s, buf);
+    c ++;
+    if (vfs_write(f, buf, 1) == -1) kernel_panic("write failed.");
+    if (*buf == 'a') i ++;     /* Five consecutive 'a' will mark the end. */
+    else i = 48;
+    fb_write(&i, 1);
+  }
 
-  fb_printf("Idle loop.\n");
+  fb_printf("========= c = %dd ========\n", c);
 
   /* This is the idle loop. */
   while (1) {
-    buf[0] = 0; buf[1] = 0;
-    s->ops->read(s, buf);
-    if (buf[0] == 27) {
-      for (i = 0; i < strlen(msg); i ++) {
-        if (s->ops->write(s, msg + i) == -1)
-          kernel_panic("Write returned -1\n");
-      }
-    }
-    else {
-      fb_write(buf, 1);
-    }
     hw_hlt();
   }
 }

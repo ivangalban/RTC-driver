@@ -40,7 +40,9 @@ build/kernel.elf: build/kernel.o \
 									build/rootfs.o \
 									build/memfs.o \
 									build/gdt.o \
-									build/gdt_asm.o
+									build/gdt_asm.o \
+									build/proc.o \
+									build/proc_asm.o
 	${LD} -m elf_i386 -T src/kernel/kernel.ld -nostdlib -static \
 				-o build/kernel.elf \
 				build/kernel_entry.o \
@@ -63,7 +65,9 @@ build/kernel.elf: build/kernel.o \
 				build/rootfs.o \
 				build/memfs.o \
 				build/gdt.o \
-				build/gdt_asm.o
+				build/gdt_asm.o \
+				build/proc.o \
+				build/proc_asm.o
 
 build/kernel_entry.o: src/kernel/kernel_entry.asm
 	${AS} -f elf -o build/kernel_entry.o src/kernel/kernel_entry.asm
@@ -129,6 +133,13 @@ build/gdt.o: src/kernel/gdt.c src/kernel/include/gdt.h
 build/gdt_asm.o: src/kernel/gdt.asm
 	${AS} -f elf -o build/gdt_asm.o src/kernel/gdt.asm
 
+build/proc.o: src/kernel/proc.c src/kernel/include/proc.h
+	${CC} ${CC_FLAGS} -o build/proc.o src/kernel/proc.c
+
+build/proc_asm.o: src/kernel/proc.asm
+	${AS} -f elf -o build/proc_asm.o src/kernel/proc.asm
+
+
 ### Clean ###
 
 .PHONY: clean
@@ -170,10 +181,17 @@ tests/.last-build: build/kernel
 
 .PHONY: qemu
 qemu: tests/.last-build
-	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio
+	python send.py src/usermode/tests/build/hello 0.1 | qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio
+
+qemu-fifo: tests/.last-build
+	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -chardev pipe,id=char0,path=uart0 -serial chardev:char0
 
 qemu-debug: tests/.last-build
 	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio -s -S &
+	gdbtui --command=tests/gdb.txt
+
+qemu-debug-fifo: tests/.last-build
+	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -chardev pipe,id=char0,path=uart0 -serial chardev:char0 -s -S &
 	gdbtui --command=tests/gdb.txt
 
 bochs: tests/.last-build
