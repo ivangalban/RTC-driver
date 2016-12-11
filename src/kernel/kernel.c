@@ -89,9 +89,13 @@ void kmain2() {
   kb_init();
   pic_unmask_dev(PIC_KEYBOARD_IRQ);
 
+  /* Start serial. */
   serial_init();
   pic_unmask_dev(PIC_SERIAL_1_IRQ);
   pic_unmask_dev(PIC_SERIAL_2_IRQ);
+
+  /* Start system calls subsystem. */
+  syscall_init();
 
   hw_sti();
 
@@ -101,6 +105,7 @@ void kmain2() {
   if (f == NULL) kernel_panic("no /init\n");
   vfs_write(f, tests_build_hello, tests_build_hello_len);
   vfs_close(f);
+
 
   proc_init();
 

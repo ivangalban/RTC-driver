@@ -43,15 +43,15 @@ int proc_init() {
  *****************************************************************************/
 
 /* Helper to release a segment. */
-static void proc_release_segment(u16 s) {
+static void proc_release_segment(gdt_selector_t s) {
   gdt_descriptor_t d;
 
-  /* Release all segments. */
   d = gdt_get(s);
-  if (d != GDT_NULL_ENTRY) {
-    gdt_dealloc(s);
-    mem_release_frames(gdt_base(d), gdt_limit(d));
-  }
+  if (d == GDT_NULL_ENTRY)
+    return;
+
+  gdt_dealloc(s);
+  mem_release_frames(gdt_base(d), gdt_limit(d));
 }
 
 /* Release the resources of a process. */

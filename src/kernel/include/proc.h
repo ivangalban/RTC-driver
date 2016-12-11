@@ -34,5 +34,6 @@ typedef struct proc {
 
 int proc_init();
 int proc_exec(char *);
+extern proc_t * proc_cur;
 
 #endif

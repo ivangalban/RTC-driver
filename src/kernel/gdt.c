@@ -87,7 +87,7 @@ static gdt_descriptor_t gdt_descriptor(void * base, u32 limit,
   flags |= tmp & 0x000000000000ffff;
   flags |= ( tmp & 0x00000000000f0000 ) << 32;
 
-  tmp = (gdt_descriptor_t)base;
+  tmp = (gdt_descriptor_t)((u32)base);
   tmp &= 0x00000000ffffffff;
 
   /* The base is split in three. */
@@ -101,8 +101,8 @@ static gdt_descriptor_t gdt_descriptor(void * base, u32 limit,
 void * gdt_base(gdt_descriptor_t d) {
   u32 base;
 
-  base = (d >> 32) & 0xf0000000;
-  base |= (d >> 16) & 0x0fffffff;
+  base = (d >> 32) & 0xff000000;
+  base |= (d >> 16) & 0x00ffffff;
 
   return (void *)base;
 }
@@ -188,7 +188,7 @@ void gdt_setup(u32 mem_total_frames) {
   gdt_load_ltr(GDT_SEGMENT_SELECTOR(GDT_TSS, GDT_RPL_KERNEL));
 }
 
-u16 gdt_alloc(void * base, u32 limit, u64 flags) {
+gdt_selector_t gdt_alloc(void * base, u32 limit, u64 flags) {
   int i;
 
   for (i = 1; i < GDT_MAX_ENTRIES && gdt[i] != GDT_NULL_ENTRY; i ++);
@@ -200,14 +200,14 @@ u16 gdt_alloc(void * base, u32 limit, u64 flags) {
   return (u16)(i * sizeof(gdt_descriptor_t));
 }
 
-void gdt_dealloc(u16 idx) {
+void gdt_dealloc(gdt_selector_t idx) {
   int i;
 
   i = idx / sizeof(gdt_descriptor_t);
   gdt[i] = GDT_NULL_ENTRY;
 }
 
-gdt_descriptor_t gdt_get(u16 idx) {
+gdt_descriptor_t gdt_get(gdt_selector_t idx) {
   int i;
 
   i = idx / sizeof(gdt_descriptor_t);

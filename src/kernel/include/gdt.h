@@ -91,9 +91,9 @@ void gdt_setup(u32);
 /*****************************************************************************
  * API                                                                       *
  *****************************************************************************/
-u16 gdt_alloc(void * base, u32 limit, u64 flags);
-void gdt_dealloc(u16);
-gdt_descriptor_t gdt_get(u16);
+gdt_selector_t gdt_alloc(void * base, u32 limit, u64 flags);
+void gdt_dealloc(gdt_selector_t);
+gdt_descriptor_t gdt_get(gdt_selector_t);
 void * gdt_base(gdt_descriptor_t);
 u32 gdt_limit(gdt_descriptor_t);
 

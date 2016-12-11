@@ -1,6 +1,6 @@
 #include <syscall.h>
 
-char * fmt = "Hola, mundo mundial. %d\n";
+char * fmt = "Hola, mundo mundial. %dd\n";
 int x, y;
 
 int main(int argc, char *argv[]) {

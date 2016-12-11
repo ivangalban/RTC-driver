@@ -42,7 +42,8 @@ build/kernel.elf: build/kernel.o \
 									build/gdt.o \
 									build/gdt_asm.o \
 									build/proc.o \
-									build/proc_asm.o
+									build/proc_asm.o \
+									build/syscall.o
 	${LD} -m elf_i386 -T src/kernel/kernel.ld -nostdlib -static \
 				-o build/kernel.elf \
 				build/kernel_entry.o \
@@ -67,7 +68,8 @@ build/kernel.elf: build/kernel.o \
 				build/gdt.o \
 				build/gdt_asm.o \
 				build/proc.o \
-				build/proc_asm.o
+				build/proc_asm.o \
+				build/syscall.o
 
 build/kernel_entry.o: src/kernel/kernel_entry.asm
 	${AS} -f elf -o build/kernel_entry.o src/kernel/kernel_entry.asm
@@ -138,6 +140,9 @@ build/proc.o: src/kernel/proc.c src/kernel/include/proc.h
 
 build/proc_asm.o: src/kernel/proc.asm
 	${AS} -f elf -o build/proc_asm.o src/kernel/proc.asm
+
+build/syscall.o: src/kernel/syscall.c src/kernel/include/syscall.h
+	${CC} ${CC_FLAGS} -o build/syscall.o src/kernel/syscall.c
 
 
 ### Clean ###

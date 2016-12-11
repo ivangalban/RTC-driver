@@ -57,7 +57,7 @@ void itr_interrupt_handler(itr_cpu_regs_t regs,
     (*ih)(regs, intr, stack);
   }
   else {
-    fb_printf(">> Generic intr handler called with IRQ: %dd\n", intr.irq);
+    fb_printf(">> int: IRQ: %dd, ERR: %dx\n", intr.irq, intr.err);
 
     hw_hlt();
 
