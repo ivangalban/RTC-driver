@@ -3,8 +3,8 @@ ENTRY(_start)
 SECTIONS {
   .text SIZEOF_HEADERS : {
     *(.text)
-  },
-  .data : {
+  }
+  .data ALIGN(4096) : {
     *(.data)
     *(.rodata)
   }

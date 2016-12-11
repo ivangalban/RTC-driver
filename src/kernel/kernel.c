@@ -9,6 +9,7 @@
 #include <devices.h>
 #include <vfs.h>
 #include <fs/rootfs.h>
+#include <proc.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -55,6 +56,8 @@ void kmain2() {
   int i, c;
   vfs_file_t *f;
 
+  #include "../userland/tests/build/hello.h"
+
   /* Now we're here, let's set the panic level to hysterical: nothing here
    * can fail. */
   set_panic_level(PANIC_HYSTERICAL);
@@ -96,22 +99,12 @@ void kmain2() {
 
   f = vfs_open("/init", FILE_O_WRITE | FILE_O_CREATE, 0755);
   if (f == NULL) kernel_panic("no /init\n");
+  vfs_write(f, tests_build_hello, tests_build_hello_len);
+  vfs_close(f);
 
-  s = dev_get_char_device(DEV_MAKE_DEV(DEV_TTY_MAJOR, 64));
-  if (s == NULL) kernel_panic("No TTY:64\n");
-  s->ops->open(s, 0);
+  proc_init();
 
-  i = 48, c = 0, buf[1] = 0;
-  while (i < 48 + 4) {
-    s->ops->read(s, buf);
-    c ++;
-    if (vfs_write(f, buf, 1) == -1) kernel_panic("write failed.");
-    if (*buf == 'a') i ++;     /* Five consecutive 'a' will mark the end. */
-    else i = 48;
-    fb_write(&i, 1);
-  }
-
-  fb_printf("========= c = %dd ========\n", c);
+  proc_exec("/init");
 
   /* This is the idle loop. */
   while (1) {

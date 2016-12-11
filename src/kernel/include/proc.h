@@ -32,4 +32,7 @@ typedef struct proc {
   vfs_file_t    * fdesc[PROC_MAX_FD];   /* File descriptors. */
 } proc_t;
 
+int proc_init();
+int proc_exec(char *);
+
 #endif

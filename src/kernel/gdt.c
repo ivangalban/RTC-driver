@@ -197,7 +197,7 @@ u16 gdt_alloc(void * base, u32 limit, u64 flags) {
 
   gdt[i] = gdt_descriptor(base, limit, flags);
 
-  return (u16)(i + sizeof(gdt_descriptor_t));
+  return (u16)(i * sizeof(gdt_descriptor_t));
 }
 
 void gdt_dealloc(u16 idx) {

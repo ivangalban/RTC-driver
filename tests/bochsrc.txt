@@ -33,7 +33,7 @@ log: -
 logprefix: %t%e%d
 panic: action=ask
 error: action=report
-info: action=report
+info: action=ignore
 debug: action=ignore
 keyboard: type=mf, serial_delay=250, paste_delay=100000, keymap=
 user_shortcut: keys=none

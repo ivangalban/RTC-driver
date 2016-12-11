@@ -82,12 +82,14 @@ static void proc_clear_regs(proc_t *p) {
  * Switch to user space                                                      *
  *****************************************************************************/
 /* This must be implemented in assembly. */
-extern void proc_switch_to_lower_privilege_level(u32 ss, u32 esp,
-                                                 u32 cs, u32 eip);
+extern void proc_switch_to_lower_privilege_level(u32 eip, u16 cs, u32 eflags,
+                                                 u32 esp, u16 ss, u16 ds,
+                                                 u16 es, u16 fs, u16 gs);
 
 void proc_switch_to_userland(proc_t *p) {
-  proc_switch_to_lower_privilege_level(p->segs.ss, p->regs.esp, p->segs.cs,
-                                       p->regs.eip);
+  proc_switch_to_lower_privilege_level(p->regs.eip, p->segs.cs, p->regs.eflags,
+                                       p->regs.esp, p->segs.ss, p->segs.ds,
+                                       p->segs.es, p->segs.fs, p->segs.gs);
 }
 
 
@@ -101,9 +103,9 @@ int proc_exec(char *path) {
   a_out_header h;
   struct stat s;
   ssize_t r, br;
-  void * base;
-  u32 limit;
-  u16 code, data;
+  char * base;
+  u32 code_limit, data_limit;
+  u16 code_segment, data_segment;
 
   /* TODO: Handle execution permissions. */
   if (vfs_stat(path, &s) == -1)
@@ -119,71 +121,116 @@ int proc_exec(char *path) {
     return -1;
   }
 
-  /* Compute the required space for the process. data and cs will be set to
-   * the same region because it's simple and because the linking script puts
-   * both segments together. This can be improved later. */
-  limit = ( h.a_text + h.a_data + h.a_bss ) / MEM_FRAME_SIZE;
-  if (( h.a_text + h.a_data + h.a_bss ) % MEM_FRAME_SIZE != 0)
-    limit ++;
+  /* Prepare memory for the process. This is not the best way, but let's use
+   * it for now. This depends heavily on the linker script. I haven't found
+   * out why some things occur, so I let the script with the configuration I
+   * like the most. If only there was a way to tell gcc not to include a
+   * .rodata section I wouldn't need a script at all - I guess.
+   * At this point we're using weird combination of NMAGIC a.out file with
+   * custom locations, which I don't know are standard or not - probably not.
+   *  1. The .text section includes the header like in QMAGIC a.out, leaving
+   *     address 0x0 useful as NULL.
+   *  2. The .data section, which includes also the damned .rodata's, is
+   *     aligned to 4KB boudaries. This was what took me hours to find out
+   *     in order to solve the weird address assignment to symbols the linker
+   *     was making while keeping the output file small.
+   *  3. The .bss section comes right after the .data section, no alignment
+   *     at all for it.
+   * I know virtual memory would solve this gracefully, and I know we might
+   * try to solve the security issues having code and data in the same segment
+   * be, but I leave that to those after me. Or the future me. I need some
+   * linker scripts reference.  */
 
-  /* Give it an extra frame for the stack. */
-  limit ++;
+  /* Compute the size of .text. */
+  code_limit = (sizeof(a_out_header) + h.a_text) / MEM_FRAME_SIZE;
+  if ((sizeof(a_out_header) + h.a_text) % MEM_FRAME_SIZE != 0)
+    code_limit ++;
+
+  /* Compute the size of .data + .bss. */
+  data_limit = (h.a_data + h.a_bss) / MEM_FRAME_SIZE;
+  if ((h.a_data + h.a_bss) % MEM_FRAME_SIZE != 0)
+    data_limit ++;
+
+  /* Add an extra frame for the stack. */
+  data_limit ++;
 
   /* Request free memory from mem. */
-  base = mem_allocate_frames(limit, MEM_USER_FIRST_FRAME, 0);
+  base = (char *)mem_allocate_frames(code_limit + data_limit,
+                                     MEM_USER_FIRST_FRAME,
+                                     0);
   if (base == NULL) {
     vfs_close(f);
     return -1;
   }
 
-  /* Request two new segments from GDT. */
-  code = gdt_alloc(base, limit, GDT_GRANULARITY_4K           |
-                                GDT_OP_SIZE_32               |
-                                GDT_PRESENT                  |
-                                GDT_DPL_USER                 |
-                                GDT_DESC_TYPE_CODE_DATA      |
-                                GDT_CODE_SEGMENT             |
-                                GDT_CODE_EXEC_READ           |
-                                GDT_CODE_NON_CONFORMING);
-  if (code == 0) {
+  /* Request code segment from GDT. */
+  code_segment = gdt_alloc(base,
+                           code_limit + data_limit,
+                           GDT_GRANULARITY_4K      |
+                           GDT_OP_SIZE_32          |
+                           GDT_PRESENT             |
+                           GDT_DPL_USER            |
+                           GDT_DESC_TYPE_CODE_DATA |
+                           GDT_CODE_SEGMENT        |
+                           GDT_CODE_EXEC_READ      |
+                           GDT_CODE_NON_CONFORMING);
+  if (code_segment == 0) {
+    mem_release_frames(base, code_limit + data_limit);
     vfs_close(f);
     return -1;
   }
 
-  data = gdt_alloc(base, limit, GDT_GRANULARITY_4K           |
-                                GDT_OP_SIZE_32               |
-                                GDT_PRESENT                  |
-                                GDT_DPL_USER                 |
-                                GDT_DESC_TYPE_CODE_DATA      |
-                                GDT_DATA_SEGMENT             |
-                                GDT_DATA_READ_WRITE          |
-                                GDT_DATA_EXPAND_UP);
-  if (data == 0) {
+  /* Allocate a segment for data. */
+  data_segment = gdt_alloc(base,
+                           code_limit + data_limit,
+                           GDT_GRANULARITY_4K      |
+                           GDT_OP_SIZE_32          |
+                           GDT_PRESENT             |
+                           GDT_DPL_USER            |
+                           GDT_DESC_TYPE_CODE_DATA |
+                           GDT_DATA_SEGMENT        |
+                           GDT_DATA_READ_WRITE     |
+                           GDT_DATA_EXPAND_UP);
+  if (data_segment == 0) {
     vfs_close(f);
-    gdt_dealloc(code);
+    gdt_dealloc(code_segment);
+    mem_release_frames(base, code_limit + data_limit);
     return -1;
   }
 
-  /* Load the executable in memory. TODO: This must be changed when the format
-   * of the executable gets updated and more standard. Right now it's a a.out
-   * but with particular linking options that make including the header
-   * necessary. */
+  /* Load the .text segment into memory. */
   for (vfs_lseek(f, 0, SEEK_SET), br = 0;
-       br < sizeof(a_out_header) + h.a_text + h.a_data;
+       br < sizeof(a_out_header) + h.a_text;
        br += r) {
-    r = vfs_read(f, base + br, sizeof(a_out_header) + h.a_text + h.a_data - br);
+    r = vfs_read(f, base + br, sizeof(a_out_header) + h.a_text - br);
     if (r == -1 || r == 0) {
       vfs_close(f);
-      gdt_dealloc(code);
-      gdt_dealloc(data);
+      gdt_dealloc(code_segment);
+      gdt_dealloc(data_segment);
+      mem_release_frames(base, code_limit + data_limit);
       return -1;
     }
   }
-  /* We need the file no more. */
+
+  /* Load the .data segment into memory. */
+  for (br = 0;
+       br < h.a_data;
+       br += r) {
+    r = vfs_read(f, base + code_limit * MEM_FRAME_SIZE + br, h.a_data - br);
+    if (r == -1 || r == 0) {
+      vfs_close(f);
+      gdt_dealloc(code_segment);
+      gdt_dealloc(data_segment);
+      mem_release_frames(base, code_limit + data_limit);
+      return -1;
+    }
+  }
+
+  /* We need the file no more so we can close it. */
   vfs_close(f);
 
-  /* zero the bss segment. */
-  memset(base + br, 0, h.a_bss);
+  /* zero the .bss segment which is located right after the .data segment. */
+  memset(base + code_limit * MEM_FRAME_SIZE + h.a_data, 0, h.a_bss);
 
   /* Now we have all we need. We can start deallocating the old resources. */
   proc_release_memory(proc_cur);
@@ -192,17 +239,19 @@ int proc_exec(char *path) {
    *       we'll have to do something here. */
 
   /* And set the new ones. */
-  proc_cur->segs.cs = GDT_SEGMENT_SELECTOR(code, GDT_RPL_USER);
-  proc_cur->segs.ds = GDT_SEGMENT_SELECTOR(data, GDT_RPL_USER);
+  proc_cur->segs.cs = GDT_SEGMENT_SELECTOR(code_segment, GDT_RPL_USER);
+  proc_cur->segs.ds = GDT_SEGMENT_SELECTOR(data_segment, GDT_RPL_USER);
   proc_cur->segs.ss = proc_cur->segs.ds;
-  /* TODO: What should we do about es, gs, and the others? */
+  proc_cur->segs.es = proc_cur->segs.ds;
+  proc_cur->segs.gs = proc_cur->segs.ds;
+  proc_cur->segs.fs = proc_cur->segs.ds;
 
   proc_cur->regs.eip = h.a_entry;
-  proc_cur->regs.esp = limit * MEM_FRAME_SIZE; /* Relative to SS ;) */
+  proc_cur->regs.esp = (code_limit + data_limit) * MEM_FRAME_SIZE;
 
   /* Do the switch. */
   proc_switch_to_userland(proc_cur);
 
   /* And never return, but the compiler doesn't know. */
-  return 0;
+  return -1;
 }

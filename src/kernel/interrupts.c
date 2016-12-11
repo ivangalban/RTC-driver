@@ -58,6 +58,9 @@ void itr_interrupt_handler(itr_cpu_regs_t regs,
   }
   else {
     fb_printf(">> Generic intr handler called with IRQ: %dd\n", intr.irq);
+
+    hw_hlt();
+
     /* This only works because we know we only deal with the 8259 PICs.
      * That said, let's just silence the interrupt -some day we'll also log
      * it-. */

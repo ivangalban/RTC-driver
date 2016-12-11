@@ -181,7 +181,7 @@ tests/.last-build: build/kernel
 
 .PHONY: qemu
 qemu: tests/.last-build
-	python send.py src/usermode/tests/build/hello 0.1 | qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio
+	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio
 
 qemu-fifo: tests/.last-build
 	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -chardev pipe,id=char0,path=uart0 -serial chardev:char0
