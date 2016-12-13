@@ -8,3 +8,7 @@ struct tm {
 	u8 month;
 	u32 year;
 };
+
+void time_get(struct tm *); //Obtiene la fecha y la hora actuales.
+void time_set(struct tm *); //Establece la fecha y la hora actuales.
+void time_sleep(int); 		//Detiene la ejecución por algunos segundos.
