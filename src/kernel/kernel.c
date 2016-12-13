@@ -54,7 +54,7 @@ void kmain(void *gdt_base, void *mem_map) {
 void kmain2() {
   char buf[100];
   ssize_t bread;
-  vfs_file_t *f;
+  vfs_file_t *f, *g;
 
   #include "../userland/tests/build/hello.h"
 
@@ -111,11 +111,16 @@ void kmain2() {
 
   // proc_exec("/init");
 
+  g = vfs_open("/dev/zero", FILE_O_READ, 0);
+  if (g == NULL) kernel_panic("no /dev/zero\n");
+
   f = vfs_open("/dev/ttyS0", FILE_O_READ | FILE_O_WRITE, 0);
   if (f == NULL) kernel_panic("no /dev/ttyS0\n");
 
   /* This is the idle loop. */
   while (1) {
+    bread = vfs_read(g, buf, 20);
+    vfs_write(f, buf, bread);
     bread = vfs_read(f, buf, 100);
     fb_write(buf, bread);
   }
