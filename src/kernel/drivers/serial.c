@@ -378,7 +378,9 @@ static ssize_t serial_read(vfs_file_t *filp, char *buf, size_t count) {
 
   unlock();
 
-  return count;
+  filp->f_pos += bread;
+
+  return bread;
 }
 
 static ssize_t serial_write(vfs_file_t *filp, char *buf, size_t count) {
@@ -399,6 +401,9 @@ static ssize_t serial_write(vfs_file_t *filp, char *buf, size_t count) {
     /* Send the byte. */
     serial_write_byte(dev, *(buf + bwrit));
   }
+
+  filp->f_pos += bwrit;
+
   return bwrit;
 }
 
