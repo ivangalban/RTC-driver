@@ -18,4 +18,5 @@
 void NMI_enable();
 void NMI_disable();
 void rtc_init();
-u8 get_RTC_register(int);
+u8 get_RTC_register(u8);
+void set_RTC_register(u8, u8);
