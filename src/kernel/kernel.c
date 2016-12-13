@@ -10,6 +10,7 @@
 #include <vfs.h>
 #include <fs/rootfs.h>
 #include <proc.h>
+#include <syscall.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -51,9 +52,8 @@ void kmain(void *gdt_base, void *mem_map) {
 }
 
 void kmain2() {
-  char buf[2];
-  dev_char_device_t *s;
-  int i, c;
+  char buf[100];
+  ssize_t bread;
   vfs_file_t *f;
 
   #include "../userland/tests/build/hello.h"
@@ -100,19 +100,23 @@ void kmain2() {
   hw_sti();
 
   /* Test userland. */
-
+  /*
   f = vfs_open("/init", FILE_O_WRITE | FILE_O_CREATE, 0755);
   if (f == NULL) kernel_panic("no /init\n");
   vfs_write(f, tests_build_hello, tests_build_hello_len);
   vfs_close(f);
-
+  */
 
   proc_init();
 
-  proc_exec("/init");
+  // proc_exec("/init");
+
+  f = vfs_open("/dev/ttyS0", FILE_O_READ | FILE_O_WRITE, 0);
+  if (f == NULL) kernel_panic("no /dev/ttyS0\n");
 
   /* This is the idle loop. */
   while (1) {
-    hw_hlt();
+    bread = vfs_read(f, buf, 100);
+    fb_write(buf, bread);
   }
 }
