@@ -20,3 +20,4 @@ void NMI_disable();
 void rtc_init();
 u8 get_RTC_register(u8);
 void set_RTC_register(u8, u8);
+int get_update_in_progress_flag();
