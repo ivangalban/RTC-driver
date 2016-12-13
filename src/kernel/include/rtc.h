@@ -15,6 +15,8 @@
 #define REGA_STATUS	 	0x0A //Register A
 #define REGB_STATUS 	0x0B //Register B
 
+void NMI_enable();
+void NMI_disable();
 void rtc_init();
 u8 rtc_get_seconds();
 u8 rtc_get_minutes();
