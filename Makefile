@@ -36,6 +36,7 @@ build/kernel.elf: build/kernel.o \
 									build/errors.o \
 									build/list.o \
 									build/devices.o \
+									build/time.o \
 									build/vfs.o \
 									build/rootfs.o \
 									build/memfs.o
@@ -57,6 +58,7 @@ build/kernel.elf: build/kernel.o \
 				build/pic.o \
 				build/list.o \
 				build/devices.o \
+				build/time.o \
 				build/vfs.o \
 				build/rootfs.o \
 				build/memfs.o
@@ -108,6 +110,9 @@ build/list.o: src/kernel/list.c src/kernel/include/list.h
 
 build/devices.o: src/kernel/devices.c src/kernel/include/devices.h
 	${CC} ${CC_FLAGS} -o build/devices.o src/kernel/devices.c
+
+build/time.o: src/kernel/time.c src/kernel/include/time.h
+	${CC} ${CC_FLAGS} -o build/time.o src/kernel/time.c
 
 build/vfs.o: src/kernel/vfs.c src/kernel/include/vfs.h
 	${CC} ${CC_FLAGS} -o build/vfs.o src/kernel/vfs.c
