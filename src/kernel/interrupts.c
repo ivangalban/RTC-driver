@@ -5,6 +5,9 @@
 #include <pic.h>
 #include <fb.h>
 #include <errors.h>
+#include <gdt.h>
+#include <lock.h>
+#include <hw.h>
 
 #define IDT_ENTRIES               256
 
@@ -30,11 +33,22 @@ interrupt_handler_t *interrupt_handlers;
 /* This is the actual IDT. This needs to be aligned. */
 itr_idt_entry_t *idt;
 
+/* This is the lock flag. It will be set before interrupts handlers are called
+ * and clear right after they return. */
+#define ITR_STATUS_NOT_IN     0
+#define ITR_STATUS_IN         1
+static int itr_status;
+
 /* This is the generic handler that will be called from assembly code whenever
  * an interrupt is issued. */
 void itr_interrupt_handler(itr_cpu_regs_t regs,
                            itr_intr_data_t intr,
                            itr_stack_state_t stack) {
+
+  /* At this point IF was cleared. Everyone calling unlock from now on won't
+   * call sti. */
+  itr_status = ITR_STATUS_IN;
+
   /* No one should call this except for the assembly code, so there's no need
    * to check intr.irq for correctness. */
   interrupt_handler_t ih = interrupt_handlers[intr.irq];
@@ -43,12 +57,18 @@ void itr_interrupt_handler(itr_cpu_regs_t regs,
     (*ih)(regs, intr, stack);
   }
   else {
-    fb_printf(">> Generic intr handler called with IRQ: %dd\n", intr.irq);
+    fb_printf(">> int: IRQ: %dd, ERR: %dx\n", intr.irq, intr.err);
+
+    hw_hlt();
+
     /* This only works because we know we only deal with the 8259 PICs.
      * That said, let's just silence the interrupt -some day we'll also log
      * it-. */
     pic_send_eoi(intr.irq);
   }
+
+  /* Now we're leaving, clear the status. */
+  itr_status = ITR_STATUS_NOT_IN;
 }
 
 /* Set an interrupt handler. This will activate the entry in the IDT and
@@ -110,4 +130,15 @@ int itr_set_up() {
   itr_load_idt(&l);
 
   return 0;
+}
+
+/* Keep interrupts from happening. */
+void lock() {
+  hw_cli();
+}
+
+/* Conditionally enable interrupts. */
+void unlock() {
+  if (itr_status == ITR_STATUS_NOT_IN)
+    hw_sti();
 }

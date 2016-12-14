@@ -91,4 +91,10 @@ struct stat {
   dev_t     dev;
 };
 
+/********************************/
+/* Process-related definitions. */
+/********************************/
+
+typedef s32                       pid_t;
+
 #endif

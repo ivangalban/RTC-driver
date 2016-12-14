@@ -39,32 +39,25 @@
 
 #include <typedef.h>
 
-/* All GDT related functionality are part of the memory subsystem.
- * We know the earliest stage of the kernel set the GDT with three entries
- * at offsets 0, 8 and 16 corresponding to NULL, kernel code and kernel data
- * segments. The other segments will be set up during later during mem_init.
- */
-#define GDT_NULL_SEGMENT                  0x00
-#define GDT_KERNEL_CODE_SEGMENT           0x08
-#define GDT_KERNEL_DATA_SEGMENT           0x10
-#define GDT_USER_CODE_SEGMENT             0x18
-#define GDT_USER_DATA_SEGMENT             0x20
-#define GDT_TSS                           0x28
-
-#define GDT_RPL_KERNEL                    0x00
-#define GDT_RPL_USER                      0x03
-
-#define GDT_SEGMENT_SELECTOR(S, RPL)      ((u16)((u16)(S) | (u16)(RPL)))
-
 /* Addresses and sizes of the most relevant memory sections in terms of the
  * kernel address space. */
 #define MEM_FRAME_SIZE            4096
 #define MEM_KERNEL_HEAP_ADDR      0x00100000  /* 1M */
 #define MEM_KERNEL_HEAP_SIZE      0x00200000  /* 2M */
 #define MEM_KERNEL_FIRST_FRAME    ((MEM_KERNEL_HEAP_ADDR) / (MEM_FRAME_SIZE))
-#define MEM_KERNEL_STACK_TOP      ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
+
+/* Set appart one frame to hold the kernel stack used when interrupts show
+ * up in user space, or when system calls occur. 4K is enough space for that
+ * and it will let us have our own kernel stack available in case we ever
+ * decide the kernel shouldn't be so passive. */
+#define MEM_KERNEL_ISTACK_TOP     ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
+#define MEM_KERNEL_ISTACK_FRAME   ((MEM_KERNEL_STACK_TOP) / (MEM_FRAME_SIZE) - 1)
+
+/* Now the kernel stack starts. */
+#define MEM_KERNEL_STACK_TOP      ((MEM_KERNEL_ISTACK_TOP) - (MEM_FRAME_SIZE))
 #define MEM_KERNEL_STACK_FRAME    ((MEM_KERNEL_STACK_TOP) / (MEM_FRAME_SIZE) - 1)
 
+/* Finally, the space destined to user processes. */
 #define MEM_USER_SPACE_ADDR       ((MEM_KERNEL_HEAP_ADDR) + (MEM_KERNEL_HEAP_SIZE))
 #define MEM_USER_FIRST_FRAME      ((MEM_USER_SPACE_ADDR) / (MEM_FRAME_SIZE))
 

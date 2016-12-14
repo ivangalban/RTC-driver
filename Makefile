@@ -38,7 +38,12 @@ build/kernel.elf: build/kernel.o \
 									build/devices.o \
 									build/vfs.o \
 									build/rootfs.o \
-									build/memfs.o
+									build/memfs.o \
+									build/gdt.o \
+									build/gdt_asm.o \
+									build/proc.o \
+									build/proc_asm.o \
+									build/syscall.o
 	${LD} -m elf_i386 -T src/kernel/kernel.ld -nostdlib -static \
 				-o build/kernel.elf \
 				build/kernel_entry.o \
@@ -59,7 +64,12 @@ build/kernel.elf: build/kernel.o \
 				build/devices.o \
 				build/vfs.o \
 				build/rootfs.o \
-				build/memfs.o
+				build/memfs.o \
+				build/gdt.o \
+				build/gdt_asm.o \
+				build/proc.o \
+				build/proc_asm.o \
+				build/syscall.o
 
 build/kernel_entry.o: src/kernel/kernel_entry.asm
 	${AS} -f elf -o build/kernel_entry.o src/kernel/kernel_entry.asm
@@ -88,7 +98,8 @@ build/mem_asm.o: src/kernel/drivers/mem.asm src/kernel/include/mem.h
 build/pic.o: src/kernel/drivers/pic.c src/kernel/include/pic.h
 	${CC} ${CC_FLAGS} -o build/pic.o src/kernel/drivers/pic.c
 
-build/interrupts.o: src/kernel/interrupts.c src/kernel/include/interrupts.h
+build/interrupts.o: src/kernel/interrupts.c src/kernel/include/interrupts.h \
+																						src/kernel/include/lock.h
 	${CC} ${CC_FLAGS} -o build/interrupts.o src/kernel/interrupts.c
 
 build/interrupts_asm.o: src/kernel/interrupts.asm
@@ -117,6 +128,22 @@ build/rootfs.o: src/kernel/fs/rootfs.c src/kernel/include/fs/rootfs.h
 
 build/memfs.o: src/kernel/fs/memfs.c src/kernel/include/fs/memfs.h
 	${CC} ${CC_FLAGS} -o build/memfs.o src/kernel/fs/memfs.c
+
+build/gdt.o: src/kernel/gdt.c src/kernel/include/gdt.h
+	${CC} ${CC_FLAGS} -o build/gdt.o src/kernel/gdt.c
+
+build/gdt_asm.o: src/kernel/gdt.asm
+	${AS} -f elf -o build/gdt_asm.o src/kernel/gdt.asm
+
+build/proc.o: src/kernel/proc.c src/kernel/include/proc.h
+	${CC} ${CC_FLAGS} -o build/proc.o src/kernel/proc.c
+
+build/proc_asm.o: src/kernel/proc.asm
+	${AS} -f elf -o build/proc_asm.o src/kernel/proc.asm
+
+build/syscall.o: src/kernel/syscall.c src/kernel/include/syscall.h
+	${CC} ${CC_FLAGS} -o build/syscall.o src/kernel/syscall.c
+
 
 ### Clean ###
 
@@ -161,8 +188,15 @@ tests/.last-build: build/kernel
 qemu: tests/.last-build
 	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio
 
+qemu-fifo: tests/.last-build
+	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -chardev pipe,id=char0,path=uart0 -serial chardev:char0
+
 qemu-debug: tests/.last-build
 	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -serial stdio -s -S &
+	gdbtui --command=tests/gdb.txt
+
+qemu-debug-fifo: tests/.last-build
+	qemu-system-i386 -drive index=0,media=disk,file=tests/images/disk.img,if=ide,format=raw -m 16 -chardev pipe,id=char0,path=uart0 -serial chardev:char0 -s -S &
 	gdbtui --command=tests/gdb.txt
 
 bochs: tests/.last-build

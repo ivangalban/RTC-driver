@@ -9,6 +9,7 @@
 #include <devices.h>
 #include <errors.h>
 #include <fb.h>
+#include <lock.h>
 
 /* We'll manage all four ISA serial ports. */
 #define SERIAL_TOTAL_DEVICES     4
@@ -237,10 +238,12 @@ void serial_set_config(serial_device_t *dev) {
 /* Forcefully read a byte from the serial line.
  * TODO: What to do if the buffer fills? Discard older data? */
 void serial_read_byte(serial_device_t *dev) {
+  lock();
   dev->read_buf.buffer[dev->read_buf.write_head] =
     inb(SERIAL_DATA_PORT(dev->base));
   dev->read_buf.write_head = (dev->read_buf.write_head + 1) %
                               SERIAL_BUFFER_LEN;
+  unlock();
 }
 
 /* Forcefully write a byte to the serial line. */
@@ -367,11 +370,11 @@ static int serial_read(dev_char_device_t *dev, char *c) {
       while (devices[i].read_buf.read_head == devices[i].read_buf.write_head) {
         hw_hlt();
       }
+      lock();
       *c = devices[i].read_buf.buffer[devices[i].read_buf.read_head];
-      hw_cli();
       devices[i].read_buf.read_head = (devices[i].read_buf.read_head + 1)
                                         % SERIAL_BUFFER_LEN;
-      hw_sti();
+      unlock();
       return 0;
     }
   }

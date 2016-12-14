@@ -1,10 +1,5 @@
-#include <vfs.h>
-#include <string.h>
-#include <devices.h>
 #include <fs/memfs.h>
 #include <fs/rootfs.h>
-#include <mem.h>
-#include <errors.h>
 
 /*****************************************************************************/
 /* Modules API ***************************************************************/

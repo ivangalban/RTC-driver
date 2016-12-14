@@ -19,13 +19,10 @@
  *
  * The reserved area contains some data prepared during the earliest stage of
  * this kernel, in particular it contains the GDT in use when the memory
- * initialization routines start. We'll only use five segments: two for the
- * kernel, two for user space, and one to hold a single TSS. Though only the
- * kernel segments were prepared, we know the GDT has enough space to hold
- * the five descriptors we need.
- *
- * TODO: Fill the remaining three GDT entries during initialization.
- * TODO: Should we provide a GDT-related API to the kernel?
+ * initialization routines start. However, the GDT will be moved to the
+ * KERNEL_TEXT section during mem_setup() via gdt_setup() in order to control
+ * all GDT-related stuff, of which the most important is to allocate segments
+ * for user space process.
  *
  * We must also set the kernel stack. However, we can't move the stack and
  * expect everything will work just fine, can we? Thus, this should be the
@@ -34,7 +31,7 @@
  * lack the ability to control what the stack size is, thus we can eventually
  * run into data corruption in kernel space :( if the heap and the stack
  * reach each other. I'm not sure about how to even detect it without virtual
- * memory.
+ * memory without having to deal with a heavily segmented memory.
  *
  * TODO: Think of a way to detect the clash between kernel's stack and heap.
  *
@@ -62,15 +59,14 @@
 #include <fb.h>
 #include <devices.h>
 #include <errors.h>
-
-void kalloc_init();
+#include <gdt.h>
+#include <lock.h>
 
 /*****************************************************************************
  * Physical allocator                                                        *
  *****************************************************************************/
-
 static u64 mem_total_frames;      /* Keeps the actual number of pages in main
-                                  * memory. */
+                                   * memory. */
 
 /* During the initial, real-mode load of the kernel we used INT 0x12,
  * AX = 0xe820 to get a memory map, which we placed as a continuos list of
@@ -119,6 +115,7 @@ u8 mem_bitmap_get_entry(u32 frame) {
   return pack >> ((frame % MEM_BITMAP_ENTRIES_PER_BYTE) * 2) & 0x03;
 }
 
+void kalloc_init();
 /* Intializes memory. It first reads the memory map obtained from the BIOS
  * and then creates a memory map with that info. It also intializes the bitmap
  * to keep track of all pages in the main memory. TODO: Fill the GDT. */
@@ -135,6 +132,9 @@ int mem_setup(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
       max_addr = e->base + e->size;
   }
   mem_total_frames = max_addr / MEM_FRAME_SIZE;
+
+  /* Initialze the GDT. */
+  gdt_setup((u32)mem_total_frames);
 
   /* Verify we have enough space to hold the bitmap. */
   for (e = (struct mem_bios_mmap_entry*)mem_map;
@@ -189,6 +189,10 @@ int mem_setup(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
     }
   }
 
+  /* Also, reserve the two stacks. */
+  mem_bitmap_set_entry(MEM_KERNEL_ISTACK_FRAME, MEM_BITMAP_ENTRY_RESERVED);
+  mem_bitmap_set_entry(MEM_KERNEL_STACK_FRAME, MEM_BITMAP_ENTRY_RESERVED);
+
   /* Finally, let's intialize the logical allocator. */
   kalloc_init();
 
@@ -202,11 +206,14 @@ int mem_setup(void *gdt_base /* __attribute__((unused)) */, void *mem_map) {
 void * mem_allocate_frames(u32 count, u32 first, u32 last) {
   /* This is the simplest, dummiest way to do this. */
   u32 f, free_f;
+  void *r;
 
   if (last == 0 || last > mem_total_frames)
     last = mem_total_frames;
 
-  for (free_f = 0, f = first; f < last; f++) {
+  lock();
+
+  for (r = NULL, free_f = 0, f = first; f < last; f++) {
     if (mem_bitmap_get_entry(f) == MEM_BITMAP_ENTRY_FREE)
       free_f++;
     else
@@ -218,10 +225,14 @@ void * mem_allocate_frames(u32 count, u32 first, u32 last) {
         free_f--;
       }
       /* Now, we return the address to the first frame. */
-      return (void *)((f - count + 1) * MEM_FRAME_SIZE);
+      r = (void *)((f - count + 1) * MEM_FRAME_SIZE);
+      break;
     }
   }
-  return NULL;
+
+  unlock();
+
+  return r;
 }
 
 /* Marks count frames from first_frame on as free. Of course, if any of the
@@ -238,12 +249,16 @@ void mem_release_frames(void *addr, u32 count) {
   if (last > mem_total_frames)
     last = mem_total_frames;
 
+  lock();
+
   for (; f < last; f++) {
     if (mem_bitmap_get_entry(f) == MEM_BITMAP_ENTRY_USED) {
       // fb_printf("fr: %d\n", f);
       mem_bitmap_set_entry(f, MEM_BITMAP_ENTRY_FREE);
     }
   }
+
+  unlock();
 }
 
 void mem_inspect() {

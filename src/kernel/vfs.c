@@ -642,7 +642,7 @@ static vfs_file_t * vfs_file_open(vfs_vnode_t *node, int flags) {
   return filp;
 }
 
-/* Remove and open file. */
+/* Remove an open file. */
 static int vfs_file_close(vfs_file_t *filp) {
   vfs_vnode_t *n;
 
@@ -1239,4 +1239,9 @@ int vfs_sb_unmount(vfs_sb_t *sb) {
   sb->ro.sb_mnt = NULL;
 
   return 0;
+}
+
+int vfs_close(vfs_file_t *filp) {
+  /* TODO: Check if this makes sense. */
+  return vfs_file_close(filp);
 }

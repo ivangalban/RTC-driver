@@ -319,5 +319,6 @@ vfs_file_t * vfs_open(char *path, int flags, mode_t mode);
 ssize_t vfs_write(vfs_file_t *filp, void *buf, size_t count);
 ssize_t vfs_read(vfs_file_t *filp, void *buf, size_t count);
 off_t vfs_lseek(vfs_file_t *filp, off_t off, int whence);
+int vfs_close(vfs_file_t *filp);
 
 #endif
