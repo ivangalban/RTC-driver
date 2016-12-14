@@ -22,6 +22,7 @@
 #define E_NOSPACE       18  /* No space left on device. */
 #define E_NOTIMP        19  /* No implemented yet. */
 #define E_INVAL         20  /* Invalid argument, mostly mode. */
+#define E_NOSEEK        21  /* For devices that can not lseek. */
 
 extern int errno;
 

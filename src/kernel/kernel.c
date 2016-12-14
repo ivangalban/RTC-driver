@@ -10,6 +10,7 @@
 #include <vfs.h>
 #include <fs/rootfs.h>
 #include <proc.h>
+#include <syscall.h>
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -51,9 +52,6 @@ void kmain(void *gdt_base, void *mem_map) {
 }
 
 void kmain2() {
-  char buf[2];
-  dev_char_device_t *s;
-  int i, c;
   vfs_file_t *f;
 
   #include "../userland/tests/build/hello.h"
@@ -105,7 +103,6 @@ void kmain2() {
   if (f == NULL) kernel_panic("no /init\n");
   vfs_write(f, tests_build_hello, tests_build_hello_len);
   vfs_close(f);
-
 
   proc_init();
 

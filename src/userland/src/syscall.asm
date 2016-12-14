@@ -5,13 +5,13 @@ SYSCALL_EXIT      equ 1
 
 global fb_printf
 fb_printf:
-  ; eip | ebx | ecx
-  mov eax, SYSCALL_FB_PRINTF
-  mov ebx, [esp + 4]
-  mov ecx, [esp + 8]
-  int 0x80
+  ; TODO: Implementar la llamada al sistema fb_printf. Los registros quedarán
+  ;       como sigue:
+  ;         eax : código de identificación de fb_printf
+  ;         ebx : dirección de memoria de la cadena de formato.
+  ;         ecx : valor del único parámetro extra a fb_printf.
   ret
-
+  
 global exit
 exit:
   ; eip | ebx

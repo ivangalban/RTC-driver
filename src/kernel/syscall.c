@@ -16,14 +16,8 @@
 static void syscall_fb_printf(itr_cpu_regs_t cpu_regs,
                               itr_intr_data_t intr_data,
                               itr_stack_state_t stack) {
-  char * addr;
-  gdt_descriptor_t d;
-
-  /* TODO: Add security checks. */
-  d = gdt_get(proc_cur->segs.ds);
-  addr = (char *)gdt_base(d);
-  addr += cpu_regs.ebx;
-  fb_printf(addr, cpu_regs.ecx);
+  /* TODO: Imprimir con fb_printf la cadena de formato en ebx con su primer
+   *       y único parámetro en ecx. */
 }
 
 static void syscall_exit(itr_cpu_regs_t cpu_regs,

@@ -10,6 +10,7 @@
 #include <errors.h>
 #include <fb.h>
 #include <lock.h>
+#include <vfs.h>
 
 /* We'll manage all four ISA serial ports. */
 #define SERIAL_TOTAL_DEVICES     4
@@ -49,12 +50,18 @@ typedef struct serial_buffer {
   char buffer[SERIAL_BUFFER_LEN];
 } serial_buffer_t;
 
+/* These are the flags used internally to maintain device status */
+#define SERIAL_FLAG_UNUSED      0x00000000
+#define SERIAL_FLAG_IN_USE      0x00000001
+
 /* This internal structure will hold a serial device configuration. */
 typedef struct serial_device {
-  dev_t devid;                  /* MAJOR|MINOR */
-  io_port_t base;               /* base port */
-  itr_irq_t irq;                /* IRQ assigned to this device. */
-  u8 type;                      /* Type of device. Unknown = not present. */
+  dev_t         devid;          /* MAJOR|MINOR */
+  io_port_t     base;           /* base port */
+  itr_irq_t     irq;            /* IRQ assigned to this device. */
+  u8            type;           /* Type of device. Unknown = not present. */
+  char        * name;           /* device name in /dev. */
+  u32           flags;          /* Internal flags. */
   struct {
     u16 divisor;                /* Baud rate divisor. */
     u8 interrupts;              /* Interrupts. */
@@ -63,7 +70,6 @@ typedef struct serial_device {
     u8 modem_ctl;               /* MODEM configuration. NOT USED. */
   } config;
   serial_buffer_t read_buf;     /* reading buffer. */
-  dev_char_device_t *dev;       /* Pointer to registered char_device_t. */
 } serial_device_t;
 
 /* UART is the chipset implementing the serial port. These are it's registers
@@ -188,25 +194,33 @@ static serial_device_t devices[SERIAL_TOTAL_DEVICES] = {
     .devid = DEV_MAKE_DEV(DEV_TTY_MAJOR, SERIAL_COM1_MINOR),
     .base = SERIAL_COM1_BASE,
     .irq = SERIAL_COM1_IRQ,
-    .type = SERIAL_TYPE_UNKNOWN
+    .type = SERIAL_TYPE_UNKNOWN,
+    .name = "ttyS0",
+    .flags = SERIAL_FLAG_UNUSED
   },
   {
     .devid = DEV_MAKE_DEV(DEV_TTY_MAJOR, SERIAL_COM2_MINOR),
     .base = SERIAL_COM2_BASE,
     .irq = SERIAL_COM2_IRQ,
-    .type = SERIAL_TYPE_UNKNOWN
+    .type = SERIAL_TYPE_UNKNOWN,
+    .name = "ttyS1",
+    .flags = SERIAL_FLAG_UNUSED
   },
   {
     .devid = DEV_MAKE_DEV(DEV_TTY_MAJOR, SERIAL_COM3_MINOR),
     .base = SERIAL_COM3_BASE,
     .irq = SERIAL_COM3_IRQ,
-    .type = SERIAL_TYPE_UNKNOWN
+    .type = SERIAL_TYPE_UNKNOWN,
+    .name = "ttyS2",
+    .flags = SERIAL_FLAG_UNUSED
   },
   {
     .devid = DEV_MAKE_DEV(DEV_TTY_MAJOR, SERIAL_COM4_MINOR),
     .base = SERIAL_COM4_BASE,
     .irq = SERIAL_COM4_IRQ,
-    .type = SERIAL_TYPE_UNKNOWN
+    .type = SERIAL_TYPE_UNKNOWN,
+    .name = "ttyS3",
+    .flags = SERIAL_FLAG_UNUSED
   },
 };
 
@@ -312,38 +326,17 @@ void serial_interrupt_handler(itr_cpu_regs_t regs,
   pic_send_eoi(data.irq);
 }
 
-static int serial_open(dev_char_device_t *dev, dev_mode_t mode) {
+static int serial_open(vfs_vnode_t *node, vfs_file_t *f) {
   int i;
 
   for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
-    if (dev->devid == devices[i].devid) {
-      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
-        set_errno(E_NODEV);
+    if (node->v_dev == devices[i].devid) {
+      if (devices[i].flags == SERIAL_FLAG_IN_USE) {
+        set_errno(E_BUSY);
         return -1;
       }
-      if (dev->count == 0) {
-        dev->count = 1;
-        return 0;
-      }
-      set_errno(E_BUSY);
-      return -1;
-    }
-  }
-
-  set_errno(E_NODEV);
-  return -1;
-}
-
-static int serial_release(dev_char_device_t *dev) {
-  int i;
-
-  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
-    if (dev->devid == devices[i].devid) {
-      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
-        set_errno(E_NODEV);
-        return -1;
-      }
-      dev->count = 0;
+      devices[i].flags = SERIAL_FLAG_IN_USE;
+      f->private_data = devices + i;
       return 0;
     }
   }
@@ -352,65 +345,74 @@ static int serial_release(dev_char_device_t *dev) {
   return -1;
 }
 
-static int serial_read(dev_char_device_t *dev, char *c) {
-  int i;
+static int serial_release(vfs_vnode_t *node, vfs_file_t *f) {
+  serial_device_t * dev;
 
-  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
-    if (dev->devid == devices[i].devid) {
-      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
-        set_errno(E_NODEV);
-        return -1;
-      }
-      if (dev->count == 0) {
-        set_errno(E_BADFD);
-        return -1;
-      }
-      /* Make this synchronous by staying here until something comes.
-       * TODO: This is not a good approach. */
-      while (devices[i].read_buf.read_head == devices[i].read_buf.write_head) {
-        hw_hlt();
-      }
-      lock();
-      *c = devices[i].read_buf.buffer[devices[i].read_buf.read_head];
-      devices[i].read_buf.read_head = (devices[i].read_buf.read_head + 1)
-                                        % SERIAL_BUFFER_LEN;
-      unlock();
-      return 0;
-    }
-  }
-
-  set_errno(E_NODEV);
-  return -1;
+  dev = (serial_device_t *)(f->private_data);
+  dev->flags = SERIAL_FLAG_UNUSED;
+  return 0;
 }
 
-static int serial_write(dev_char_device_t *dev, char *c) {
-  int i;
+static ssize_t serial_read(vfs_file_t *filp, char *buf, size_t count) {
+  serial_device_t * dev;
+  ssize_t bread;
+
+  dev = (serial_device_t *)(filp->private_data);
+
+  /* Make this synchronous by staying here until something arrives. I know
+   * this is not a good apporach. */
+  while (dev->read_buf.read_head == dev->read_buf.write_head) {
+    hw_hlt();
+  }
+
+  lock();
+
+  for (bread = 0;
+
+       bread < count &&
+       dev->read_buf.read_head != dev->read_buf.write_head;
+
+       buf[bread ++] = dev->read_buf.buffer[dev->read_buf.read_head],
+       dev->read_buf.read_head = (dev->read_buf.read_head + 1)
+                                  % SERIAL_BUFFER_LEN);
+
+  unlock();
+
+  filp->f_pos += bread;
+
+  return bread;
+}
+
+static ssize_t serial_write(vfs_file_t *filp, char *buf, size_t count) {
+  serial_device_t * dev;
+  ssize_t bwrit;
   u8 r8;
 
-  for (i = 0; i < SERIAL_TOTAL_DEVICES; i ++) {
-    if (dev->devid == devices[i].devid) {
-      if (devices[i].type == SERIAL_TYPE_UNKNOWN) {
-        set_errno(E_NODEV);
-        return -1;
-      }
-      if (dev->count == 0) {
-        set_errno(E_BADFD);
-        return -1;
-      }
-      while (1) {
-        r8 = inb(SERIAL_LINE_STATUS_PORT(devices[i].base));
-        if (r8 & SERIAL_LINE_STATUS_EMPTY_DATA_HOLDING_REG)
-          break;
-      };
-      serial_write_byte(devices + i, *c);
-      return 0;
-    }
+  dev = (serial_device_t *)(filp->private_data);
+
+  for (bwrit = 0; bwrit < count; bwrit ++) {
+    /* Wait until there's room in the device's buffer to send data. */
+    while (1) {
+      r8 = inb(SERIAL_LINE_STATUS_PORT(dev->base));
+      if (r8 & SERIAL_LINE_STATUS_EMPTY_DATA_HOLDING_REG)
+        break;
+    };
+
+    /* Send the byte. */
+    serial_write_byte(dev, *(buf + bwrit));
   }
-  set_errno(E_NODEV);
+
+  filp->f_pos += bwrit;
+
+  return bwrit;
+}
+
+static off_t serial_lseek(vfs_file_t *filp, off_t off, int whence) {
+  set_errno(E_NOSEEK);
   return -1;
 }
 
-static int serial_ioctl(dev_char_device_t *dev, u32 request, void *data) {
+static int serial_ioctl(vfs_file_t *filp, int request, void *data) {
   return 0;
 }
 
@@ -419,6 +421,17 @@ static int serial_ioctl(dev_char_device_t *dev, u32 request, void *data) {
 int serial_init() {
   int i;
   u8 r8;
+  vfs_file_operations_t ops;
+
+  /* It doesn't matter which device we find, they'll share the same ops. */
+  ops.open = serial_open;
+  ops.release = serial_release;
+  ops.flush = NULL;
+  ops.read = serial_read;
+  ops.write = serial_write;
+  ops.lseek = serial_lseek;
+  ops.ioctl = serial_ioctl;
+  ops.readdir = NULL;
 
   /* Identify the devices and load the current values into our device
    * structures. */
@@ -517,18 +530,7 @@ int serial_init() {
 
     serial_set_config(devices + i);
 
-    devices[i].dev = (dev_char_device_t *)kalloc(sizeof(dev_char_device_t));
-    devices[i].dev->devid = devices[i].devid;
-    devices[i].dev->count = 0;
-    devices[i].dev->ops =
-      (dev_char_device_operations_t *)kalloc(sizeof(dev_char_device_operations_t));
-    devices[i].dev->ops->open = serial_open;
-    devices[i].dev->ops->release = serial_release;
-    devices[i].dev->ops->read = serial_read;
-    devices[i].dev->ops->write = serial_write;
-    devices[i].dev->ops->ioctl = serial_ioctl;
-
-    dev_register_char_device(devices[i].dev);
+    dev_register_char_dev(devices[i].devid, devices[i].name, &ops);
   }
 
   /* Set only the interrupt handlers that must be set. */

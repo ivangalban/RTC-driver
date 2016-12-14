@@ -426,125 +426,41 @@ void mem_inspect_alloc() {
 #define MEM_NULL_MINOR  3
 #define MEM_ZERO_MINOR  5
 
-#define show_call(f, d) fb_printf(#f " :%bd:%bd\n", DEV_MAJOR(d->devid), DEV_MINOR(d->devid))
-
-static int mem_open(dev_char_device_t *dev, dev_mode_t mode) {
-  show_call(mem_open, dev);
-  switch (DEV_MINOR(dev->devid)) {
-    case MEM_NULL_MINOR:
-      /* TODO: Do real checks here. */
-      dev->count ++;
-      return 0;
-      break;
-    case MEM_ZERO_MINOR:
-      /* TODO: Do real checks here. */
-      dev->count ++;
-      return 0;
-      break;
-    default:
-      set_errno(E_NODEV);
-      return -1;
-      break;
-  }
-}
-
-static int mem_release(dev_char_device_t *dev) {
-  show_call(mem_release, dev);
-  switch (DEV_MINOR(dev->devid)) {
-    case MEM_NULL_MINOR:
-      /* TODO: Do real checks here. */
-      dev->count --;
-      return 0;
-      break;
-    case MEM_ZERO_MINOR:
-      /* TODO: Do real checks here. */
-      dev->count --;
-      return 0;
-      break;
-    default:
-      set_errno(E_NODEV);
-      return -1;
-      break;
-  }
-}
-
-static int mem_read(dev_char_device_t *dev, char *c) {
-  show_call(mem_read, dev);
-  switch (DEV_MINOR(dev->devid)) {
-    case MEM_NULL_MINOR:
-      set_errno(E_BADFD);
-      return -1;
-      break;
-    case MEM_ZERO_MINOR:
-      *c = '\0';
-      return 0;
-      break;
-    default:
-      set_errno(E_NODEV);
-      return -1;
-      break;
-  }
-}
-
-static int mem_write(dev_char_device_t *dev, char *c) {
-  show_call(mem_write, dev);
-  switch (DEV_MINOR(dev->devid)) {
-    case MEM_NULL_MINOR:
-      return 0;
-      break;
-    case MEM_ZERO_MINOR:
-      set_errno(E_BADFD);
-      return -1;
-      break;
-    default:
-      set_errno(E_NODEV);
-      return -1;
-      break;
-  }
-}
-
-static int mem_ioctl(dev_char_device_t *dev, u32 request, void *data) {
-  show_call(mem_ioctl, dev);
-  /* TODO: Mmm... */
+static int mem_file_open(vfs_vnode_t *node, vfs_file_t *filp) {
   return 0;
 }
 
-static dev_char_device_operations_t mem_operations = {
-  .open = mem_open,
-  .release = mem_release,
-  .read = mem_read,
-  .write = mem_write,
-  .ioctl = mem_ioctl
-};
+static ssize_t mem_file_read(vfs_file_t *filp, char *buf, size_t count) {
+  switch (filp->ro.f_vnode->v_dev) {
+    case DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_ZERO_MINOR):
+      memset(buf, '*', count); /* Jus to check this works. */
+      filp->f_pos += count;
+      break;
+  }
+  return (ssize_t)count;
+}
 
-static dev_char_device_t mem_null = {
-  .devid = DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_ZERO_MINOR),
-  .count = 0,
-  .ops = &mem_operations
-};
-
-/*****************************************************************************/
-/* New VFS-based API *********************************************************/
-/*****************************************************************************/
-
-/* CLASE: Implementar las operaciones que necesite /dev/zero. */
-
-static vfs_file_operations_t mem_zero_ops = {
-  .open = NULL,
-  .release = NULL,
-  .flush = NULL,
-  .read = NULL,
-  .write = NULL,
-  .lseek = NULL,
-  .ioctl = NULL,
-  .readdir = NULL
-};
-
+static ssize_t mem_file_write(vfs_file_t *filp, char *buf, size_t count) {
+  return (ssize_t)count;
+}
 
 int mem_init() {
+  vfs_file_operations_t ops;
+
+  ops.open = mem_file_open;
+  ops.release = NULL;
+  ops.flush = NULL;
+  ops.read = mem_file_read;
+  ops.write = mem_file_write;
+  ops.lseek = NULL;
+  ops.ioctl = NULL;
+  ops.readdir = NULL;
+
   dev_register_char_dev(DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_ZERO_MINOR),
                         "zero",
-                        &mem_zero_ops);
-  dev_register_char_device(&mem_null);
+                        &ops);
+  dev_register_char_dev(DEV_MAKE_DEV(DEV_MEM_MAJOR, MEM_NULL_MINOR),
+                        "null",
+                        &ops);
   return 0;
 }
