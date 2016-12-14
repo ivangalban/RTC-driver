@@ -1,7 +1,7 @@
 #include <time.h>
 #include <rtc.h>
 
-#define CURRENT_YEAR        2014
+#define CURRENT_YEAR        2016
 
 // Set by ACPI table parsing code if possible
 int century_register = 0x00;
@@ -66,7 +66,7 @@ void time_get(struct tm *t) {
  
       // Convert BCD to binary values if necessary
  
-      if (!(registerB & 0x04)) {
+      if (!(registerB & BINARY_MODE)) {
             t->seconds = (t->seconds & 0x0F) + ((t->seconds / 16) * 10);
             t->minutes = (t->minutes & 0x0F) + ((t->minutes / 16) * 10);
             t->hours = ( (t->hours & 0x0F) + (((t->hours & 0x70) / 16) * 10) ) | (t->hours & 0x80);
@@ -80,7 +80,7 @@ void time_get(struct tm *t) {
  
       // Convert 12 hour clock to 24 hour clock if necessary
  
-      if (!(registerB & 0x02) && (t->hours & 0x80)) {
+      if (!(registerB & FORMAT_24HOURS) && (t->hours & 0x80)) {
             t->hours = ((t->hours & 0x7F) + 12) % 24;
       }
  

@@ -15,6 +15,10 @@
 #define REGA_STATUS	 	0x0A //Register A
 #define REGB_STATUS 	0x0B //Register B
 
+//Formats of the date/time RTC bytes:
+#define BINARY_MODE		0x04
+#define FORMAT_24HOURS	0x02
+
 void NMI_enable();
 void NMI_disable();
 void rtc_init();
