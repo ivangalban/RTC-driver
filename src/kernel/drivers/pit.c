@@ -20,7 +20,9 @@ void pit_init() {
 void pit_interrupt_handler(itr_cpu_regs_t regs,
                               itr_intr_data_t data,
                               itr_stack_state_t stack) {
-
+	fb_printf("counter: %dd\n", counter);
+	++counter;
+	pic_send_eoi(data.irq);
 }
 
 void pit_interrupt_disabled() {
