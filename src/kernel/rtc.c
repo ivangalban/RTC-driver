@@ -1,6 +1,6 @@
 #include <rtc.h>
 #include <io.h>
-
+#include <hw.h>
 
 void NMI_enable() {
 	outb(CMOS_ADDRESS, inb(CMOS_ADDRESS) & 0x7F);
@@ -23,8 +23,10 @@ u8 get_RTC_register(u8 reg) {
 }
 
 void set_RTC_register(u8 reg_addres, u8 data) {
+	hw_cli();
 	outb(CMOS_ADDRESS, reg_addres);
 	outb(CMOS_DATA, data);
+	hw_sti();
 }
 
 
