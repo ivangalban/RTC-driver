@@ -19,6 +19,12 @@
 #define BINARY_MODE		0x04
 #define FORMAT_24HOURS	0x02
 
+//ID
+#define RTC_MAJOR		13
+#define RTC_MINOR 		17
+
+
+
 void NMI_enable();
 void NMI_disable();
 void rtc_init();

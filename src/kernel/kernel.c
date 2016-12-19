@@ -109,6 +109,8 @@ void kmain2() {
   /* We can now turn interrupts on, they won't reach us (yet). */
 
   fb_printf("Idle loop.\n");
+  fb_printf("Hello World");
+
 
   /* This is the idle loop. */
   while (1) {
