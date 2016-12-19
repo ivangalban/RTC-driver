@@ -4,6 +4,35 @@
 #include <devices.h>
 
 
+static int rtc_open_b(dev_char_device_t *dev, dev_mode_t mode) {
+	return 0;
+}
+
+
+static int rtc_read_b(dev_char_device_t *dev, char *c) {
+	return 0;
+}
+
+static int rtc_write_b(dev_char_device_t *dev, char *c) {
+	return 0;
+}
+
+
+static dev_char_device_operations_t rtc_operations = {
+  .open    = rtc_open_b,
+  .release = NULL,
+  .read    = rtc_read_b,
+  .write   = rtc_write_b,
+  .ioctl   = NULL
+};
+
+
+static dev_char_device_t dev_rtc = {
+  .devid = DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR),
+  .count = 0,
+  .ops = &rtc_operations
+};
+
 
 /*****************************************************************************/
 /* New VFS-based API *********************************************************/
@@ -37,6 +66,7 @@ void rtc_init() {
 	dev_register_char_dev(DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR), 
 						  "rtc", 
 							&rtc_ops);
+	dev_register_char_device(&dev_rtc);
 }
 
 
