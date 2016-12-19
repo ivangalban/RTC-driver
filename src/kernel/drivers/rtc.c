@@ -2,36 +2,10 @@
 #include <io.h>
 #include <hw.h>
 #include <devices.h>
+#include <typedef.h>
 
+#define show_call(f, d) fb_printf(#f " :%bd:%bd\n", DEV_MAJOR(d->devid), DEV_MINOR(d->devid))
 
-static int rtc_open_b(dev_char_device_t *dev, dev_mode_t mode) {
-	return 0;
-}
-
-
-static int rtc_read_b(dev_char_device_t *dev, char *c) {
-	return 0;
-}
-
-static int rtc_write_b(dev_char_device_t *dev, char *c) {
-	return 0;
-}
-
-
-static dev_char_device_operations_t rtc_operations = {
-  .open    = rtc_open_b,
-  .release = NULL,
-  .read    = rtc_read_b,
-  .write   = rtc_write_b,
-  .ioctl   = NULL
-};
-
-
-static dev_char_device_t dev_rtc = {
-  .devid = DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR),
-  .count = 0,
-  .ops = &rtc_operations
-};
 
 
 /*****************************************************************************/
@@ -39,15 +13,28 @@ static dev_char_device_t dev_rtc = {
 /*****************************************************************************/
 
 static int rtc_open(vfs_vnode_t *node, vfs_file_t *filp) {
-	return 0;
+	/* This checks should be improved. */
+  if (filp->f_flags == FILE_O_RW)
+    return 0;
+  return -1;
 }
 
 static ssize_t rtc_write(vfs_file_t *filp, char *buf, size_t count) {
-	return 0;
+	
+	for(int i = 0; i < count; ++i)
+		set_RTC_register(i, buf[i]);
+	filp->f_pos += count;
+	
+	return (ssize_t)count;
 }
 
 static ssize_t rtc_read(vfs_file_t *filp, char *buf, size_t count) {
-	return 0;
+	
+	for(int i = 0; i < count; ++i)
+		buf[i] = get_RTC_register(i);
+	filp->f_pos += count;
+
+	return (ssize_t)count;
 }
 
 static vfs_file_operations_t rtc_ops = {
@@ -66,7 +53,6 @@ void rtc_init() {
 	dev_register_char_dev(DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR), 
 						  "rtc", 
 							&rtc_ops);
-	dev_register_char_device(&dev_rtc);
 }
 
 
@@ -81,8 +67,11 @@ void NMI_disable() {
 
 
 u8 get_RTC_register(u8 reg) {
-      outb(CMOS_ADDRESS, reg);
-      return inb(CMOS_DATA);
+	hw_cli();
+	outb(CMOS_ADDRESS, reg);
+	u8 ret = inb(CMOS_DATA);
+	hw_sti();
+	return ret;
 }
 
 void set_RTC_register(u8 reg_addres, u8 data) {
