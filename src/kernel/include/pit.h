@@ -54,3 +54,14 @@ Bits         Usage
 #define PIT_OSCILATOR_FREQUENCY	1193182
 #define PIT_OUTPUT_FREQUENCY	100
 #define PIT_RELOAD_VALUE	PIT_OSCILATOR_FREQUENCY / PIT_OUTPUT_FREQUENCY
+
+
+
+u64 counter;
+
+void pit_init();
+void pit_interrupt_handler(itr_cpu_regs_t regs,
+                              itr_intr_data_t data,
+                              itr_stack_state_t stack);
+
+void pit_interrupt_disabled();
