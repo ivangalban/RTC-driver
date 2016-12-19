@@ -26,5 +26,7 @@ void pit_interrupt_handler(itr_cpu_regs_t regs,
 }
 
 void pit_interrupt_disabled() {
-
+	itr_set_interrupt_handler(PIC_TIMER_IRQ,
+	                    pit_interrupt_handler,
+	                    IDT_NOT_PRESENT | IDT_DPL_RING_0 | IDT_GATE_INTR);
 }
