@@ -1,3 +1,6 @@
+#ifndef __TIME_H__
+#define __TIME_H__
+
 #include <typedef.h>
 
 struct tm {
@@ -12,3 +15,5 @@ struct tm {
 void time_get(struct tm *); //Obtiene la fecha y la hora actuales.
 void time_set(struct tm *); //Establece la fecha y la hora actuales.
 void time_sleep(int); 		//Detiene la ejecución por algunos segundos.
+
+#endif

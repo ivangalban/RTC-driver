@@ -1,4 +1,9 @@
+#ifndef __RTC_H__
+#define __RTC_H__
+
 #include <typedef.h>
+#include <vfs.h>
+#include <string.h>
 
 #define CMOS_ADDRESS 	0x70
 #define CMOS_DATA 		0x71
@@ -24,6 +29,9 @@
 #define RTC_MINOR 		17
 
 
+vfs_file_t *fdrtc;
+//u8 REGISTER[] = {REG_SECONDS, REG_MINUTES, REG_HOURS,  REG_DAY, REG_MONTH, REG_YEAR};
+//#define REGISTER_COUNT strlen(REGISTER)
 
 void NMI_enable();
 void NMI_disable();
@@ -31,3 +39,5 @@ void rtc_init();
 u8 get_RTC_register(u8);
 void set_RTC_register(u8, u8);
 int get_update_in_progress_flag();
+
+#endif

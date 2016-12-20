@@ -1,3 +1,7 @@
+#ifndef __PIT_H__
+#define __PIT_H__
+
+
 #include <typedef.h>
 #include <interrupts.h>
 
@@ -65,3 +69,5 @@ void pit_interrupt_handler(itr_cpu_regs_t regs,
                               itr_stack_state_t stack);
 
 void pit_interrupt_disabled();
+
+#endif
