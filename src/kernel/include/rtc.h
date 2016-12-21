@@ -30,8 +30,10 @@
 
 
 vfs_file_t *fdrtc;
-//u8 REGISTER[] = {REG_SECONDS, REG_MINUTES, REG_HOURS,  REG_DAY, REG_MONTH, REG_YEAR};
-//#define REGISTER_COUNT strlen(REGISTER)
+
+u8 REGISTER_VALUES[6];
+
+#define REGISTER_COUNT strlen(REGISTER_VALUES);
 
 void NMI_enable();
 void NMI_disable();

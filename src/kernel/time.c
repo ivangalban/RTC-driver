@@ -6,10 +6,13 @@
 // Set by ACPI table parsing code if possible
 int century_register = 0x00;
 
+ 
+
 //Obtiene la fecha y la hora actuales.
 void time_get(struct tm *t) {
 	
-	u8 century;
+	//fdrtc->;
+	/*u8 century;
 	u8 last_second;
 	u8 last_minute;
 	u8 last_hour;
@@ -91,23 +94,17 @@ void time_get(struct tm *t) {
       } else {
             t->year += (CURRENT_YEAR / 100) * 100;
             if(t->year < CURRENT_YEAR) t->year += 100;
-      }
+      }*/
 
 }
 
 
 //Establece la fecha y la hora actuales.
 void time_set(struct tm *t) {
-	NMI_disable();
-	
-	set_RTC_register(REG_SECONDS, t->seconds);
-	set_RTC_register(REG_MINUTES, t->minutes);
-	set_RTC_register(REG_HOURS, t->hours);
-	set_RTC_register(REG_DAY, t->day);
-	set_RTC_register(REG_MONTH, t->month);
-	set_RTC_register(REG_YEAR, t->year);
+	char buf[] = {t-> seconds, t-> minutes, t-> hours, 
+				  t-> day, t-> month, t-> year % 100};
 
-	NMI_enable();
+	fdrtc->f_ops.write(fdrtc, buf, 6); 
 }
 
 

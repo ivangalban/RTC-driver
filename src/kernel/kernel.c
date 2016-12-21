@@ -2,6 +2,7 @@
 #include <hw.h>
 #include <string.h>
 #include <mem.h>
+#include <rtc.h>
 #include <pic.h>
 #include <serial.h>
 #include <kb.h>
@@ -87,6 +88,13 @@ void kmain2() {
   if (f == NULL) kernel_panic("no /dev/zero\n");
   if (vfs_read(f, buf2 + 3, 5) != 5) kernel_panic("read failed.\n");
   fb_write(buf2, 10);
+
+  /*
+  RTC
+  */
+  rtc_init();
+   
+
 
   /* Initializes the PICs. This mask all interrupts. */
   pic_init();

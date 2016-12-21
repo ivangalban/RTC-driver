@@ -3,9 +3,9 @@
 #include <hw.h>
 #include <devices.h>
 #include <typedef.h>
+#include <errors.h>
 
 #define show_call(f, d) fb_printf(#f " :%bd:%bd\n", DEV_MAJOR(d->devid), DEV_MINOR(d->devid))
-
 
 
 /*****************************************************************************/
@@ -22,7 +22,7 @@ static int rtc_open(vfs_vnode_t *node, vfs_file_t *filp) {
 static ssize_t rtc_write(vfs_file_t *filp, char *buf, size_t count) {
 	
 	for(int i = 0; i < count; ++i)
-		set_RTC_register(i, buf[i]);
+		set_RTC_register(REGISTER_VALUES[i], buf[i]);
 	filp->f_pos += count;
 	
 	return (ssize_t)count;
@@ -31,7 +31,7 @@ static ssize_t rtc_write(vfs_file_t *filp, char *buf, size_t count) {
 static ssize_t rtc_read(vfs_file_t *filp, char *buf, size_t count) {
 	
 	for(int i = 0; i < count; ++i)
-		buf[i] = get_RTC_register(i);
+		buf[i] = get_RTC_register(REGISTER_VALUES[i]);
 	filp->f_pos += count;
 
 	return (ssize_t)count;
@@ -50,9 +50,20 @@ static vfs_file_operations_t rtc_ops = {
 
 
 void rtc_init() {
+
+	REGISTER_VALUES[0] = REG_SECONDS;
+	REGISTER_VALUES[1] = REG_MINUTES;
+	REGISTER_VALUES[2] = REG_HOURS;
+	REGISTER_VALUES[3] = REG_DAY;
+	REGISTER_VALUES[4] = REG_MONTH;
+	REGISTER_VALUES[5] = REG_YEAR;
+
 	dev_register_char_dev(DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR), 
 						  "rtc", 
 							&rtc_ops);
+	fdrtc = vfs_open("/dev/rtc", FILE_O_RW, 0);
+  	if(fdrtc == NULL)
+  		kernel_panic("no /dev/rtc\n");
 }
 
 
