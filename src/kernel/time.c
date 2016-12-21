@@ -1,7 +1,14 @@
 #include <time.h>
 #include <rtc.h>
+#include <fb.h>
 
 #define CURRENT_YEAR        2016
+
+void time_show(struct tm *t) {
+	fb_printf("Date: %dd/%dd/%dd\n", t->day, t->month, t->year);
+	fb_printf("Time: %dd:%dd:%dd\n", t->hours, t->minutes, t->seconds);
+	fb_printf("\n");
+}
 
 
 void time_load(struct tm *t, char *buf) {
@@ -33,7 +40,7 @@ void time_get(struct tm *t) {
 	//       to avoid getting dodgy/inconsistent values due to RTC updates
  	
  	// Make sure an update isn't in progress
-	while (get_update_in_progress_flag());
+	//while (get_update_in_progress_flag());
 
 	time_load(t, buf);
  
@@ -46,14 +53,14 @@ void time_get(struct tm *t) {
 	    last_year = t->year;
 
 	    // Make sure an update isn't in progress
-	    while (get_update_in_progress_flag());
+	    //while (get_update_in_progress_flag());
 
 	    time_load(t, buf);
 
 	} while( (last_second != t->seconds) || (last_minute != t->minutes) || (last_hour != t->hours) ||
 	       (last_day != t->day) || (last_month != t->month) || (last_year != t->year) );
  
-      registerB = get_RTC_register(REGB_STATUS);
+      registerB = buf[6];
  
       // Convert BCD to binary values if necessary
  
