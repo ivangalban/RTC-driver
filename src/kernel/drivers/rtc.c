@@ -21,17 +21,21 @@ static int rtc_open(vfs_vnode_t *node, vfs_file_t *filp) {
 
 static ssize_t rtc_write(vfs_file_t *filp, char *buf, size_t count) {
 	
+	hw_cli();
 	for(int i = 0; i < count; ++i)
 		set_RTC_register(REGISTER_VALUES[i], buf[i]);
+	hw_sti();
 	filp->f_pos += count;
-	
+
 	return (ssize_t)count;
 }
 
 static ssize_t rtc_read(vfs_file_t *filp, char *buf, size_t count) {
 	
+	hw_cli();
 	for(int i = 0; i < count; ++i)
 		buf[i] = get_RTC_register(REGISTER_VALUES[i]);
+	hw_sti();
 	filp->f_pos += count;
 
 	return (ssize_t)count;
@@ -78,18 +82,14 @@ void NMI_disable() {
 
 
 u8 get_RTC_register(u8 reg) {
-	hw_cli();
 	outb(CMOS_ADDRESS, reg);
 	u8 ret = inb(CMOS_DATA);
-	hw_sti();
 	return ret;
 }
 
 void set_RTC_register(u8 reg_addres, u8 data) {
-	hw_cli();
 	outb(CMOS_ADDRESS, reg_addres);
 	outb(CMOS_DATA, data);
-	hw_sti();
 }
 
 
