@@ -31,7 +31,7 @@
 
 vfs_file_t *fdrtc;
 
-#define REGISTER_COUNT 6
+#define REGISTER_COUNT 7
 u8 REGISTER_VALUES[REGISTER_COUNT];
 
 

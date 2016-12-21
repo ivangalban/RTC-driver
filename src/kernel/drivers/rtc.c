@@ -61,6 +61,7 @@ void rtc_init() {
 	REGISTER_VALUES[3] = REG_DAY;
 	REGISTER_VALUES[4] = REG_MONTH;
 	REGISTER_VALUES[5] = REG_YEAR;
+	REGISTER_VALUES[6] = REGB_STATUS;
 
 	dev_register_char_dev(DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR), 
 						  "rtc", 
