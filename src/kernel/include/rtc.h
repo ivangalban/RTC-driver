@@ -31,9 +31,9 @@
 
 vfs_file_t *fdrtc;
 
-u8 REGISTER_VALUES[6];
+#define REGISTER_COUNT 6
+u8 REGISTER_VALUES[REGISTER_COUNT];
 
-#define REGISTER_COUNT strlen(REGISTER_VALUES);
 
 void NMI_enable();
 void NMI_disable();
