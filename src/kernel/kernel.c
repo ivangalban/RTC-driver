@@ -128,12 +128,12 @@ void kmain2() {
     
   //testing set_time()
   struct tm mytm2;
-  mytm2.hours = 8;
-  mytm2.seconds = 55;
-  mytm2.minutes = 51;
-  mytm2.day = 3;
+  mytm2.hours = 18;
+  mytm2.seconds = 59;
+  mytm2.minutes = 59;
+  mytm2.day = 31;
   mytm2.month = 12;
-  mytm2.year = 2020;
+  mytm2.year = 2100;
   time_set(&mytm2);
 
   
@@ -145,11 +145,10 @@ void kmain2() {
 
   
   //testing sleep()
-  /*struct tm mytm5;
+  struct tm mytm5;
   time_get(&mytm5);
   fb_printf("\nTHE CURRENT TIME IS:\n");
-  fb_printf("%bd%s%bd%s%bd\n",mytm5.hours,":",mytm5.minutes,":",mytm5.seconds);
-  fb_printf("%bd%s%bd%s%wd\n",mytm5.day,"/",mytm5.month,"/",mytm5.year);
+  time_show(&mytm5);
   
   time_sleep(5);
   fb_printf("\nAfter sleep\n");
@@ -157,10 +156,9 @@ void kmain2() {
   struct tm mytm4;
   time_get(&mytm4);
   fb_printf("\nTHE CURRENT TIME IS:\n");
-  fb_printf("%bd%s%bd%s%bd\n",mytm4.hours,":",mytm4.minutes,":",mytm4.seconds);
-  fb_printf("%bd%s%bd%s%wd\n",mytm4.day,"/",mytm4.month,"/",mytm4.year);
+  time_show(&mytm4);
 
-*/
+
 
 
 
