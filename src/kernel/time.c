@@ -26,7 +26,7 @@ void time_load(struct tm *t, char *buf) {
 	t->day     = buf[3];
 	t->month   = buf[4];
 	t->year    = buf[5];
-	//century = get_RTC_register(REG_CENTURY);
+	century = get_RTC_register(REG_CENTURY);
 }
 
 
@@ -56,13 +56,13 @@ void time_get(struct tm *t) {
 		last_day = t->day;
 		last_month = t->month;
 		last_year = t->year;
+		last_century = century;
 
-		time_show(t);
 		time_load(t, buf);
 		
-		fb_printf("begin get");
-	} while(   (last_second != t->seconds) || (last_minute != t->minutes) || (last_hour != t->hours) ||
-	   (last_day != t->day) || (last_month != t->month) || (last_year != t->year)  );
+	} while((last_second != t->seconds) || (last_minute != t->minutes) || 
+			(last_hour != t->hours) || (last_day != t->day)   || (last_month != t->month) ||
+			(last_year != t->year)  || (last_year != t->year) || (last_century != century));
 
 	registerB = get_RTC_register(REGB_STATUS);
 
