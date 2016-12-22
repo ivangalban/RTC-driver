@@ -22,11 +22,10 @@ static int rtc_open(vfs_vnode_t *node, vfs_file_t *filp) {
 static ssize_t rtc_write(vfs_file_t *filp, char *buf, size_t count) {
 	
 	hw_cli();
-	for(int i = 0; i < count-1; ++i)
+	for(int i = 0; i < count; ++i)
 		set_RTC_register(REGISTER_VALUES[i], buf[i]);
-	set_RTC_register(REG_CENTURY, buf[count-1]);
 	hw_sti();
-	filp->f_pos += count;
+	//filp->f_pos += count;
 
 	return (ssize_t)count;
 }
@@ -37,7 +36,7 @@ static ssize_t rtc_read(vfs_file_t *filp, char *buf, size_t count) {
 	for(int i = 0; i < count; ++i)
 		buf[i] = get_RTC_register(REGISTER_VALUES[i]);
 	hw_sti();
-	filp->f_pos += count;
+	//filp->f_pos += count;
 
 	return (ssize_t)count;
 }

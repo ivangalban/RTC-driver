@@ -1,6 +1,7 @@
 #include <time.h>
 #include <rtc.h>
 #include <fb.h>
+#include <hw.h>
 
 #define CURRENT_YEAR        2016
 
@@ -25,14 +26,13 @@ void time_load(struct tm *t, char *buf) {
 	t->day     = buf[3];
 	t->month   = buf[4];
 	t->year    = buf[5];
-	century = get_RTC_register(REG_CENTURY);
+	//century = get_RTC_register(REG_CENTURY);
 }
 
 
 //Obtiene la fecha y la hora actuales.
 void time_get(struct tm *t) {
 	
-
 
 	char buf[REGISTER_COUNT];
 	u8 last_second;
@@ -41,6 +41,7 @@ void time_get(struct tm *t) {
 	u8 last_day;
 	u8 last_month;
 	u8 last_year;
+	u8 last_century;
 	u8 registerB;
 
 	// Note: This uses the "read registers until you get the same values twice in a row" technique
@@ -56,10 +57,12 @@ void time_get(struct tm *t) {
 		last_month = t->month;
 		last_year = t->year;
 
+		time_show(t);
 		time_load(t, buf);
-
-	} while( (last_second != t->seconds) || (last_minute != t->minutes) || (last_hour != t->hours) ||
-	   (last_day != t->day) || (last_month != t->month) || (last_year != t->year) );
+		
+		fb_printf("begin get");
+	} while(   (last_second != t->seconds) || (last_minute != t->minutes) || (last_hour != t->hours) ||
+	   (last_day != t->day) || (last_month != t->month) || (last_year != t->year)  );
 
 	registerB = get_RTC_register(REGB_STATUS);
 
@@ -96,19 +99,21 @@ void time_set(struct tm *t) {
 				  t-> day, t-> month, t-> year % 100};
 	u8 century = t->year / 100;
 	u8 RegisterB = get_RTC_register(REGB_STATUS);
-	if(!(RegisterB & BINARY_MODE)){
+	if(BCD_to_binary(RegisterB)){
 		buf[0] = BIN_TO_BCD(buf[0]);
 		buf[1] = BIN_TO_BCD(buf[1]);
 		buf[2] = BIN_TO_BCD(buf[2]);
 		buf[3] = BIN_TO_BCD(buf[3]);
 		buf[4] = BIN_TO_BCD(buf[4]);
 		buf[5] = BIN_TO_BCD(buf[5]);
-		buf[6] = BIN_TO_BCD(buf[6]);
-		century = BIN_TO_BCD(century);
+		century= BIN_TO_BCD(century);
 	}
 
-	set_RTC_register(REG_CENTURY, century);
+	//set_RTC_register(REGB_STATUS, 0);
 	fdrtc->f_ops.write(fdrtc, buf, REGISTER_COUNT);
+	hw_cli();
+	set_RTC_register(REG_CENTURY, century);
+	hw_sti();
 
 }
 

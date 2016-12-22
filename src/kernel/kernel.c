@@ -129,12 +129,13 @@ void kmain2() {
   //testing set_time()
   struct tm mytm2;
   mytm2.hours = 8;
-  mytm2.seconds = 5;
-  mytm2.minutes = 5;
+  mytm2.seconds = 55;
+  mytm2.minutes = 51;
   mytm2.day = 3;
   mytm2.month = 12;
-  mytm2.year = 1995;
+  mytm2.year = 2020;
   time_set(&mytm2);
+
   
   struct tm mytm3;
   time_get(&mytm3); 
