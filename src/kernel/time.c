@@ -33,7 +33,6 @@ void time_load(struct tm *t, char *buf) {
 //Obtiene la fecha y la hora actuales.
 void time_get(struct tm *t) {
 	
-
 	char buf[REGISTER_COUNT];
 	u8 last_second;
 	u8 last_minute;
