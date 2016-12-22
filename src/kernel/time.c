@@ -10,8 +10,12 @@ void time_show(struct tm *t) {
 	fb_printf("\n");
 }
 
+u8 century;
 
 void time_load(struct tm *t, char *buf) {
+
+	// Make sure an update isn't in progress
+	while (get_update_in_progress_flag());
 
 	fdrtc->f_ops.read(fdrtc, buf, REGISTER_COUNT);
 
@@ -21,6 +25,7 @@ void time_load(struct tm *t, char *buf) {
 	t->day     = buf[3];
 	t->month   = buf[4];
 	t->year    = buf[5];
+	century = get_RTC_register(REG_CENTURY);
 }
 
 
@@ -35,55 +40,45 @@ void time_get(struct tm *t) {
 	u8 last_month;
 	u8 last_year;
 	u8 registerB;
- 
+
 	// Note: This uses the "read registers until you get the same values twice in a row" technique
 	//       to avoid getting dodgy/inconsistent values due to RTC updates
- 	
- 	// Make sure an update isn't in progress
-	//while (get_update_in_progress_flag());
 
 	time_load(t, buf);
- 
+
 	do {
-	    last_second = t->seconds;
-	    last_minute = t->minutes;
-	    last_hour = t->hours;
-	    last_day = t->day;
-	    last_month = t->month;
-	    last_year = t->year;
+		last_second = t->seconds;
+		last_minute = t->minutes;
+		last_hour = t->hours;
+		last_day = t->day;
+		last_month = t->month;
+		last_year = t->year;
 
-	    // Make sure an update isn't in progress
-	    //while (get_update_in_progress_flag());
-
-	    time_load(t, buf);
+		time_load(t, buf);
 
 	} while( (last_second != t->seconds) || (last_minute != t->minutes) || (last_hour != t->hours) ||
-	       (last_day != t->day) || (last_month != t->month) || (last_year != t->year) );
- 
-      registerB = buf[6];
- 
-      // Convert BCD to binary values if necessary
- 
-      if (!(registerB & BINARY_MODE)) {
-            t->seconds = (t->seconds & 0x0F) + ((t->seconds / 16) * 10);
-            t->minutes = (t->minutes & 0x0F) + ((t->minutes / 16) * 10);
-            t->hours = ( (t->hours & 0x0F) + (((t->hours & 0x70) / 16) * 10) ) | (t->hours & 0x80);
-            t->day = (t->day & 0x0F) + ((t->day / 16) * 10);
-            t->month = (t->month & 0x0F) + ((t->month / 16) * 10);
-            t->year = (t->year & 0x0F) + ((t->year / 16) * 10);
-      }
- 
-      // Convert 12 hour clock to 24 hour clock if necessary
- 
-      if (!(registerB & FORMAT_24HOURS) && (t->hours & 0x80)) {
-            t->hours = ((t->hours & 0x7F) + 12) % 24;
-      }
- 
-      // Calculate the full (4-digit) year
+	   (last_day != t->day) || (last_month != t->month) || (last_year != t->year) );
 
-    t->year += (CURRENT_YEAR / 100) * 100;
-    if(t->year < CURRENT_YEAR)
-    	t->year += 100;
+	registerB = buf[6];
+
+	// Convert BCD to binary values if necessary
+	if (!(registerB & BINARY_MODE)) {
+	    t->seconds = (t->seconds & 0x0F) + ((t->seconds / 16) * 10);
+	    t->minutes = (t->minutes & 0x0F) + ((t->minutes / 16) * 10);
+	    t->hours = ( (t->hours & 0x0F) + (((t->hours & 0x70) / 16) * 10) ) | (t->hours & 0x80);
+	    t->day = (t->day & 0x0F) + ((t->day / 16) * 10);
+	    t->month = (t->month & 0x0F) + ((t->month / 16) * 10);
+	    t->year = (t->year & 0x0F) + ((t->year / 16) * 10);
+	    century = (century & 0x0F) + ((century / 16) * 10);
+	}
+
+	// Convert 12 hour clock to 24 hour clock if necessary
+
+	if (!(registerB & FORMAT_24HOURS) && (t->hours & 0x80))
+	    t->hours = ((t->hours & 0x7F) + 12) % 24;
+
+	// Calculate the full (4-digit) year
+	t->year += century * 100;
 }
 
 
@@ -95,8 +90,20 @@ void time_set(struct tm *t) {
 	fdrtc->f_ops.write(fdrtc, buf, REGISTER_COUNT); 
 }
 
+u64 get_seconds(struct tm *t) {
+	return t->seconds + t->minutes*60 + t->hours*60*60 + 
+			t->day*24*60*60 + t->month*30*24*60*60 + 
+			t->year*365*24*60*60;
+}
 
 //Detiene la ejecución por algunos segundos.
 void time_sleep(int s) {
+	struct tm t;
+	time_get(&t);
+	u64 seconds_start = get_seconds(&t);
+	u64 seconds_end	  = seconds_start + s;
 
+	do{
+		time_get(&t);
+	}while(get_seconds(&t) < seconds_end);
 }
