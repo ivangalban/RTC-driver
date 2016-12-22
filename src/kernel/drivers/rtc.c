@@ -96,6 +96,6 @@ void set_RTC_register(u8 reg_addres, u8 data) {
 
 int get_update_in_progress_flag() {
       outb(CMOS_ADDRESS, REGA_STATUS);
-      return (inb(CMOS_ADDRESS) & 0x80);
+      return (inb(CMOS_DATA) & 0x80);
 }
 
