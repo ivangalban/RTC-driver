@@ -22,8 +22,9 @@ static int rtc_open(vfs_vnode_t *node, vfs_file_t *filp) {
 static ssize_t rtc_write(vfs_file_t *filp, char *buf, size_t count) {
 	
 	hw_cli();
-	for(int i = 0; i < count; ++i)
+	for(int i = 0; i < count-1; ++i)
 		set_RTC_register(REGISTER_VALUES[i], buf[i]);
+	set_RTC_register(REG_CENTURY, buf[count-1]);
 	hw_sti();
 	filp->f_pos += count;
 
@@ -61,7 +62,6 @@ void rtc_init() {
 	REGISTER_VALUES[3] = REG_DAY;
 	REGISTER_VALUES[4] = REG_MONTH;
 	REGISTER_VALUES[5] = REG_YEAR;
-	REGISTER_VALUES[6] = REGB_STATUS;
 
 	dev_register_char_dev(DEV_MAKE_DEV(RTC_MAJOR, RTC_MINOR), 
 						  "rtc", 

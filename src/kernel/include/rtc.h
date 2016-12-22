@@ -28,10 +28,11 @@
 #define RTC_MAJOR		13
 #define RTC_MINOR 		17
 
+#define BIN_TO_BCD(bin) ((((bin)/10) << 4) | (((bin)%10) & 0x0f))
 
 vfs_file_t *fdrtc;
 
-#define REGISTER_COUNT 7
+#define REGISTER_COUNT 6
 u8 REGISTER_VALUES[REGISTER_COUNT];
 
 

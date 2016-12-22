@@ -32,6 +32,8 @@ void time_load(struct tm *t, char *buf) {
 //Obtiene la fecha y la hora actuales.
 void time_get(struct tm *t) {
 	
+
+
 	char buf[REGISTER_COUNT];
 	u8 last_second;
 	u8 last_minute;
@@ -59,7 +61,7 @@ void time_get(struct tm *t) {
 	} while( (last_second != t->seconds) || (last_minute != t->minutes) || (last_hour != t->hours) ||
 	   (last_day != t->day) || (last_month != t->month) || (last_year != t->year) );
 
-	registerB = buf[6];
+	registerB = get_RTC_register(REGB_STATUS);
 
 	// Convert BCD to binary values if necessary
 	if (!(registerB & BINARY_MODE)) {
@@ -79,6 +81,12 @@ void time_get(struct tm *t) {
 
 	// Calculate the full (4-digit) year
 	t->year += century * 100;
+
+}
+
+int BCD_to_binary(u8 RegisterB){
+		
+    return !(RegisterB&0x04);
 }
 
 
@@ -86,8 +94,22 @@ void time_get(struct tm *t) {
 void time_set(struct tm *t) {
 	char buf[] = {t-> seconds, t-> minutes, t-> hours, 
 				  t-> day, t-> month, t-> year % 100};
+	u8 century = t->year / 100;
+	u8 RegisterB = get_RTC_register(REGB_STATUS);
+	if(!(RegisterB & BINARY_MODE)){
+		buf[0] = BIN_TO_BCD(buf[0]);
+		buf[1] = BIN_TO_BCD(buf[1]);
+		buf[2] = BIN_TO_BCD(buf[2]);
+		buf[3] = BIN_TO_BCD(buf[3]);
+		buf[4] = BIN_TO_BCD(buf[4]);
+		buf[5] = BIN_TO_BCD(buf[5]);
+		buf[6] = BIN_TO_BCD(buf[6]);
+		century = BIN_TO_BCD(century);
+	}
 
-	fdrtc->f_ops.write(fdrtc, buf, REGISTER_COUNT); 
+	set_RTC_register(REG_CENTURY, century);
+	fdrtc->f_ops.write(fdrtc, buf, REGISTER_COUNT);
+
 }
 
 u64 get_seconds(struct tm *t) {
