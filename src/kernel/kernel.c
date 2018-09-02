@@ -2,6 +2,7 @@
 #include <hw.h>
 #include <string.h>
 #include <mem.h>
+#include <rtc.h>
 #include <pic.h>
 #include <serial.h>
 #include <kb.h>
@@ -9,8 +10,12 @@
 #include <devices.h>
 #include <vfs.h>
 #include <fs/rootfs.h>
+<<<<<<< HEAD
 #include <proc.h>
 #include <syscall.h>
+=======
+#include <time.h>
+>>>>>>> projects/time
 
 /* Just the declaration of the second, main kernel routine. */
 void kmain2();
@@ -80,6 +85,17 @@ void kmain2() {
   /* Complete memory initialization now as a device and filesystem module. */
   mem_init();
 
+<<<<<<< HEAD
+=======
+  memset(buf2, '-', 10);
+  f = vfs_open("/dev/zero", FILE_O_READ, 0);
+  if (f == NULL) kernel_panic("no /dev/zero\n");
+  if (vfs_read(f, buf2 + 3, 5) != 5) kernel_panic("read failed.\n");
+  fb_write(buf2, 10);
+   
+
+
+>>>>>>> projects/time
   /* Initializes the PICs. This mask all interrupts. */
   pic_init();
 
@@ -107,6 +123,54 @@ void kmain2() {
   proc_init();
 
   proc_exec("/init");
+
+    
+
+    /*
+  RTC DRIVERS
+  */  
+  rtc_init();
+  //testing get_time()
+  struct tm mytm;
+  time_get(&mytm);
+  fb_printf("\nTHE TIME IS:\n");
+  time_show(&mytm);
+    
+  //testing set_time()
+  struct tm mytm2;
+  mytm2.hours = 18;
+  mytm2.seconds = 59;
+  mytm2.minutes = 59;
+  mytm2.day = 31;
+  mytm2.month = 12;
+  mytm2.year = 2100;
+  time_set(&mytm2);
+
+  
+  struct tm mytm3;
+  time_get(&mytm3); 
+  
+  fb_printf("\n\nTHE SET TIME IS:\n");
+  time_show(&mytm3);
+
+  
+  //testing sleep()
+  struct tm mytm5;
+  time_get(&mytm5);
+  fb_printf("\nTHE CURRENT TIME IS:\n");
+  time_show(&mytm5);
+  
+  time_sleep(5);
+  fb_printf("\nAfter sleep\n");
+
+  struct tm mytm4;
+  time_get(&mytm4);
+  fb_printf("\nTHE CURRENT TIME IS:\n");
+  time_show(&mytm4);
+
+
+
+
 
   /* This is the idle loop. */
   while (1) {

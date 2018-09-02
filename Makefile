@@ -29,6 +29,7 @@ build/kernel.elf: build/kernel.o \
 									build/mem.o \
 									build/mem_asm.o \
 									build/pic.o \
+									build/pit.o \
 									build/interrupts.o \
 									build/interrupts_asm.o \
 									build/kb.o \
@@ -36,6 +37,8 @@ build/kernel.elf: build/kernel.o \
 									build/errors.o \
 									build/list.o \
 									build/devices.o \
+									build/rtc.o \
+									build/time.o \
 									build/vfs.o \
 									build/rootfs.o \
 									build/memfs.o \
@@ -60,8 +63,11 @@ build/kernel.elf: build/kernel.o \
 				build/interrupts.o \
 				build/interrupts_asm.o \
 				build/pic.o \
+				build/pit.o \
 				build/list.o \
 				build/devices.o \
+				build/rtc.o \
+				build/time.o \
 				build/vfs.o \
 				build/rootfs.o \
 				build/memfs.o \
@@ -98,8 +104,15 @@ build/mem_asm.o: src/kernel/drivers/mem.asm src/kernel/include/mem.h
 build/pic.o: src/kernel/drivers/pic.c src/kernel/include/pic.h
 	${CC} ${CC_FLAGS} -o build/pic.o src/kernel/drivers/pic.c
 
+<<<<<<< HEAD
 build/interrupts.o: src/kernel/interrupts.c src/kernel/include/interrupts.h \
 																						src/kernel/include/lock.h
+=======
+build/pit.o: src/kernel/drivers/pit.c src/kernel/include/pit.h
+	${CC} ${CC_FLAGS} -o build/pit.o src/kernel/drivers/pit.c
+
+build/interrupts.o: src/kernel/interrupts.c src/kernel/include/interrupts.h
+>>>>>>> projects/time
 	${CC} ${CC_FLAGS} -o build/interrupts.o src/kernel/interrupts.c
 
 build/interrupts_asm.o: src/kernel/interrupts.asm
@@ -119,6 +132,12 @@ build/list.o: src/kernel/list.c src/kernel/include/list.h
 
 build/devices.o: src/kernel/devices.c src/kernel/include/devices.h
 	${CC} ${CC_FLAGS} -o build/devices.o src/kernel/devices.c
+
+build/rtc.o: src/kernel/drivers/rtc.c src/kernel/include/rtc.h
+	${CC} ${CC_FLAGS} -o build/rtc.o src/kernel/drivers/rtc.c
+
+build/time.o: src/kernel/time.c src/kernel/include/time.h
+	${CC} ${CC_FLAGS} -o build/time.o src/kernel/time.c
 
 build/vfs.o: src/kernel/vfs.c src/kernel/include/vfs.h
 	${CC} ${CC_FLAGS} -o build/vfs.o src/kernel/vfs.c
